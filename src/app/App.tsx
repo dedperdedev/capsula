@@ -10,7 +10,7 @@ import { DrugDetailsPage } from '../pages/DrugDetailsPage';
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/capsula">
       <Shell>
         <Routes>
           <Route path="/" element={<Navigate to="/today" replace />} />

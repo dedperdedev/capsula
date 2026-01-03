@@ -4,6 +4,7 @@ import { TopBar } from '../components/shared/TopBar';
 import { Card } from '../components/shared/Card';
 import { Button } from '../components/shared/Button';
 import { Modal } from '../components/shared/Modal';
+import { InventoryStatus } from '../components/InventoryStatus';
 import { itemsStore, inventoryStore, schedulesStore } from '../data/store';
 import type { Item, ItemForm, ItemType } from '../data/types';
 import { toast } from '../components/shared/Toast';
@@ -157,6 +158,17 @@ export function LibraryPage() {
       />
 
       <div className="space-y-4">
+        {/* Inventory Status */}
+        <InventoryStatus 
+          compact={false} 
+          showRefill={true}
+          onRefill={(itemId) => {
+            const item = items.find(i => i.id === itemId);
+            if (item) handleOpenModal(item);
+          }}
+        />
+
+        {/* Show empty toggle */}
         {items.some(item => {
           const inv = getInventory(item.id);
           return !inv || inv.remainingUnits === 0;

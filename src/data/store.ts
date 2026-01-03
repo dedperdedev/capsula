@@ -141,6 +141,9 @@ export const inventoryStore = {
   getLowStock(): Inventory[] {
     return this.getAll().filter(inv => inv.remainingUnits <= inv.lowThreshold && inv.remainingUnits > 0);
   },
+  getOutOfStock(): Inventory[] {
+    return this.getAll().filter(inv => inv.remainingUnits === 0);
+  },
   create(inventory: Inventory): void {
     const all = this.getAll();
     const existing = all.findIndex(inv => inv.itemId === inventory.itemId);
@@ -166,6 +169,43 @@ export const inventoryStore = {
     all[index].remainingUnits = Math.max(0, all[index].remainingUnits - amount);
     saveJSON(STORAGE_KEYS.inventory, all);
     return true;
+  },
+  increment(itemId: string, amount: number): boolean {
+    const all = this.getAll();
+    const index = all.findIndex(inv => inv.itemId === itemId);
+    if (index === -1) return false;
+    all[index].remainingUnits += amount;
+    saveJSON(STORAGE_KEYS.inventory, all);
+    return true;
+  },
+  /**
+   * Calculate "enough until" date based on schedule
+   */
+  getEnoughUntil(itemId: string): Date | null {
+    const inventory = this.getByItemId(itemId);
+    if (!inventory || inventory.remainingUnits <= 0) return null;
+
+    const schedules = schedulesStore.getByItemId(itemId).filter(s => s.enabled);
+    if (schedules.length === 0) return null;
+
+    // Calculate daily consumption
+    let dailyDoses = 0;
+    for (const schedule of schedules) {
+      const dosesPerDay = schedule.times.length;
+      // Account for days of week if specified
+      if (schedule.daysOfWeek && schedule.daysOfWeek.length > 0) {
+        dailyDoses += (dosesPerDay * schedule.daysOfWeek.length) / 7;
+      } else {
+        dailyDoses += dosesPerDay;
+      }
+    }
+
+    if (dailyDoses === 0) return null;
+
+    const daysRemaining = Math.floor(inventory.remainingUnits / dailyDoses);
+    const enoughUntil = new Date();
+    enoughUntil.setDate(enoughUntil.getDate() + daysRemaining);
+    return enoughUntil;
   },
 };
 

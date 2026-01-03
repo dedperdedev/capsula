@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Moon, Sun, AlertTriangle, Languages, Bell, Database, Download, Upload, Trash2, Printer } from 'lucide-react';
+import { Moon, Sun, AlertTriangle, Languages, Database, Download, Upload, Trash2, Printer, BellRing, BellOff, Smartphone } from 'lucide-react';
 import { TopBar } from '../components/shared/TopBar';
 import { Card } from '../components/shared/Card';
 import { Button } from '../components/shared/Button';
@@ -11,22 +11,26 @@ import { useI18n, setLocale } from '../hooks/useI18n';
 import { loadDemoData } from '../data/seedData';
 import { downloadBackup, validateBackup, importData, resetAllData, printReport, type BackupPreview } from '../data/backup';
 import { loadAppState } from '../data/storage';
-
-const NOTIFICATIONS_KEY = 'capsula_notifications_enabled';
+import { useNotifications } from '../hooks/useNotifications';
 
 export function SettingsPage() {
   const { locale, t } = useI18n();
   const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(getTheme());
-  const [isNotificationsEnabled, setIsNotificationsEnabled] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem(NOTIFICATIONS_KEY) === 'true';
-  });
   const [importPreview, setImportPreview] = useState<BackupPreview | null>(null);
   const [importFile, setImportFile] = useState<any>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const {
+    permission,
+    isSupported,
+    settings: notificationSettings,
+    updateSettings: updateNotificationSettings,
+    requestPermission,
+    getNotificationStatus,
+  } = useNotifications();
 
   useEffect(() => {
     ensureThemeApplied();
@@ -34,6 +38,7 @@ export function SettingsPage() {
 
   const items = itemsStore.getAll();
   const lowStockItems = inventoryStore.getLowStock();
+  const notificationStatus = getNotificationStatus();
 
   const handleThemeToggle = () => {
     const newTheme = currentTheme === 'light' ? 'dark' : 'light';
@@ -42,13 +47,23 @@ export function SettingsPage() {
     toast.success(`${t('settings.switchedTheme')} ${newTheme} ${t('settings.mode')}`);
   };
 
-  const handleNotificationsToggle = () => {
-    const newState = !isNotificationsEnabled;
-    setIsNotificationsEnabled(newState);
-    localStorage.setItem(NOTIFICATIONS_KEY, String(newState));
-    toast.success(
-      newState ? t('settings.notificationsEnabled') : t('settings.notificationsDisabled')
-    );
+  const handleEnableNotifications = async () => {
+    if (permission === 'default') {
+      const granted = await requestPermission();
+      if (granted) {
+        updateNotificationSettings({ enabled: true });
+        toast.success(locale === 'ru' ? 'Уведомления включены' : 'Notifications enabled');
+      } else {
+        toast.error(locale === 'ru' ? 'Разрешение отклонено' : 'Permission denied');
+      }
+    } else if (permission === 'granted') {
+      updateNotificationSettings({ enabled: !notificationSettings.enabled });
+      toast.success(
+        notificationSettings.enabled 
+          ? (locale === 'ru' ? 'Уведомления отключены' : 'Notifications disabled')
+          : (locale === 'ru' ? 'Уведомления включены' : 'Notifications enabled')
+      );
+    }
   };
 
   const handleExport = () => {
@@ -167,21 +182,95 @@ export function SettingsPage() {
           </div>
         </Card>
 
+        {/* Notifications */}
         <Card>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Bell className="text-[var(--muted)]" size={20} />
-              <div>
-                <h3 className="font-semibold text-[var(--text)]">{t('settings.notifications')}</h3>
-                <p className="text-sm text-[var(--muted2)]">{t('settings.enableNotifications')}</p>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {notificationStatus.available ? (
+                  <BellRing className="text-green-500" size={20} />
+                ) : (
+                  <BellOff className="text-[var(--muted)]" size={20} />
+                )}
+                <div>
+                  <h3 className="font-semibold text-[var(--text)]">{t('settings.notifications')}</h3>
+                  <p className="text-sm text-[var(--muted2)]">
+                    {notificationStatus.message}
+                  </p>
+                </div>
               </div>
+              {isSupported && permission !== 'denied' && (
+                <Button 
+                  variant={notificationSettings.enabled && permission === 'granted' ? 'primary' : 'ghost'} 
+                  size="sm" 
+                  onClick={handleEnableNotifications}
+                >
+                  {permission === 'default' 
+                    ? (locale === 'ru' ? 'Включить' : 'Enable')
+                    : notificationSettings.enabled 
+                      ? (locale === 'ru' ? 'Вкл' : 'On')
+                      : (locale === 'ru' ? 'Выкл' : 'Off')}
+                </Button>
+              )}
             </div>
-            <input
-              type="checkbox"
-              checked={isNotificationsEnabled}
-              onChange={handleNotificationsToggle}
-              className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-            />
+            
+            {/* Notification settings when enabled */}
+            {notificationStatus.available && (
+              <div className="pt-3 border-t border-[var(--stroke)] space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--text)]">
+                    {locale === 'ru' ? 'Звук' : 'Sound'}
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={notificationSettings.sound}
+                    onChange={(e) => updateNotificationSettings({ sound: e.target.checked })}
+                    className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--text)]">
+                    {locale === 'ru' ? 'Вибрация' : 'Vibration'}
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={notificationSettings.vibration}
+                    onChange={(e) => updateNotificationSettings({ vibration: e.target.checked })}
+                    className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--text)]">
+                    {locale === 'ru' ? 'Напоминать за' : 'Remind before'}
+                  </span>
+                  <select
+                    value={notificationSettings.reminderBeforeMinutes}
+                    onChange={(e) => updateNotificationSettings({ reminderBeforeMinutes: parseInt(e.target.value) })}
+                    className="px-3 py-1 border border-[var(--stroke)] rounded-lg bg-[var(--surface)] text-[var(--text)] text-sm"
+                  >
+                    <option value={0}>{locale === 'ru' ? 'Вовремя' : 'On time'}</option>
+                    <option value={5}>{locale === 'ru' ? '5 мин' : '5 min'}</option>
+                    <option value={10}>{locale === 'ru' ? '10 мин' : '10 min'}</option>
+                    <option value={15}>{locale === 'ru' ? '15 мин' : '15 min'}</option>
+                    <option value={30}>{locale === 'ru' ? '30 мин' : '30 min'}</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* PWA Install hint */}
+            {isSupported && (
+              <div className="pt-3 border-t border-[var(--stroke)]">
+                <div className="flex items-start gap-3 p-3 bg-[var(--surface2)] rounded-[12px]">
+                  <Smartphone size={18} className="text-[var(--muted2)] mt-0.5" />
+                  <p className="text-xs text-[var(--muted2)]">
+                    {locale === 'ru' 
+                      ? 'Установите приложение на домашний экран для надежных уведомлений'
+                      : 'Install the app to your home screen for reliable notifications'}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </Card>
 

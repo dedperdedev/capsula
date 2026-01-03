@@ -126,8 +126,8 @@ export function DrugSearch({ onSelect, placeholder, className }: DrugSearchProps
     <div ref={containerRef} className={`relative ${className || ''}`}>
       <div className="relative">
         <Search 
-          size={18} 
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted2)] pointer-events-none"
+          size={16} 
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted2)] pointer-events-none"
         />
         <input
           ref={inputRef}
@@ -138,14 +138,14 @@ export function DrugSearch({ onSelect, placeholder, className }: DrugSearchProps
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           placeholder={placeholder || (locale === 'ru' ? 'Поиск препаратов...' : 'Search drugs...')}
-          className="w-full h-[46px] pl-11 pr-11 rounded-[18px] border border-[var(--stroke)] bg-[var(--surface)] text-[var(--text)] font-black text-sm focus:outline-none focus:ring-2 focus:ring-[var(--acc2)] focus:border-transparent placeholder:text-[var(--muted2)]"
+          className="w-full h-[42px] pl-10 pr-8 rounded-[18px] border border-[var(--stroke)] bg-[var(--surface)] text-[var(--text)] font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-[var(--acc2)] focus:border-transparent placeholder:text-[var(--muted2)]"
         />
         {query && (
           <button
             onClick={handleClear}
-            className="absolute right-11 top-1/2 -translate-y-1/2 p-1 hover:bg-[var(--stroke)] rounded-full transition-colors"
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-[var(--stroke)] rounded-full transition-colors"
           >
-            <X size={16} className="text-[var(--muted2)]" />
+            <X size={14} className="text-[var(--muted2)]" />
           </button>
         )}
       </div>

@@ -1,208 +1,255 @@
 /**
  * Capsula Service Worker
- * Handles caching for offline support and notification scheduling
+ * Provides offline caching and background sync
  */
 
-const CACHE_NAME = 'capsula-v1';
-const STATIC_ASSETS = [
+const CACHE_VERSION = 'v1';
+const CACHE_NAME = `capsula-${CACHE_VERSION}`;
+const OFFLINE_URL = '/capsula/offline.html';
+
+// Assets to cache immediately on install
+const PRECACHE_ASSETS = [
   '/capsula/',
   '/capsula/index.html',
+  '/capsula/offline.html',
   '/capsula/manifest.json',
+  '/capsula/icon-192.png',
+  '/capsula/icon-512.png',
 ];
 
-// Install event - cache static assets
+// Install event - precache essential assets
 self.addEventListener('install', (event) => {
+  console.log('[SW] Installing service worker...');
+  
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    })
+    caches.open(CACHE_NAME)
+      .then((cache) => {
+        console.log('[SW] Precaching essential assets');
+        return cache.addAll(PRECACHE_ASSETS);
+      })
+      .then(() => {
+        console.log('[SW] Installation complete');
+        return self.skipWaiting();
+      })
+      .catch((error) => {
+        console.error('[SW] Precache failed:', error);
+      })
   );
-  self.skipWaiting();
 });
 
 // Activate event - cleanup old caches
 self.addEventListener('activate', (event) => {
+  console.log('[SW] Activating service worker...');
+  
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
-      );
-    })
+    caches.keys()
+      .then((cacheNames) => {
+        return Promise.all(
+          cacheNames
+            .filter((name) => name.startsWith('capsula-') && name !== CACHE_NAME)
+            .map((name) => {
+              console.log('[SW] Deleting old cache:', name);
+              return caches.delete(name);
+            })
+        );
+      })
+      .then(() => {
+        console.log('[SW] Activation complete');
+        return self.clients.claim();
+      })
   );
-  self.clients.claim();
 });
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event - cache-first strategy for assets, network-first for API
 self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
   // Skip non-GET requests
-  if (event.request.method !== 'GET') return;
+  if (request.method !== 'GET') {
+    return;
+  }
 
   // Skip external requests
-  if (!event.request.url.startsWith(self.location.origin)) return;
+  if (!url.origin.includes(self.location.origin)) {
+    return;
+  }
 
+  // Network-first for HTML (always try to get fresh content)
+  if (request.headers.get('accept')?.includes('text/html')) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          // Cache successful responses
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(() => {
+          // Fallback to cache or offline page
+          return caches.match(request)
+            .then((cached) => cached || caches.match(OFFLINE_URL));
+        })
+    );
+    return;
+  }
+
+  // Cache-first for assets (JS, CSS, images)
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Return cached version and update in background
-        event.waitUntil(
-          fetch(event.request).then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, networkResponse.clone());
-              });
+    caches.match(request)
+      .then((cached) => {
+        if (cached) {
+          // Return cached version and update cache in background
+          fetch(request)
+            .then((response) => {
+              if (response.ok) {
+                caches.open(CACHE_NAME).then((cache) => cache.put(request, response));
+              }
+            })
+            .catch(() => {});
+          return cached;
+        }
+
+        // Not in cache, fetch from network
+        return fetch(request)
+          .then((response) => {
+            if (response.ok) {
+              const clone = response.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
             }
-          }).catch(() => {})
-        );
-        return cachedResponse;
-      }
-
-      // No cache, fetch from network
-      return fetch(event.request).then((response) => {
-        // Cache successful responses
-        if (response && response.status === 200) {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
+            return response;
           });
-        }
-        return response;
-      }).catch(() => {
-        // Offline fallback for navigation requests
-        if (event.request.mode === 'navigate') {
-          return caches.match('/capsula/index.html');
-        }
-        return new Response('Offline', { status: 503 });
-      });
-    })
+      })
   );
 });
 
-// Push notification event
+// Push notification handler
 self.addEventListener('push', (event) => {
-  if (!event.data) return;
+  console.log('[SW] Push notification received');
+  
+  if (!event.data) {
+    console.log('[SW] No data in push event');
+    return;
+  }
 
-  const data = event.data.json();
-  const options = {
-    body: data.body || 'Time to take your medication',
-    icon: '/capsula/icons/icon-192x192.png',
-    badge: '/capsula/icons/icon-72x72.png',
-    vibrate: [200, 100, 200],
-    tag: data.tag || 'dose-reminder',
-    renotify: true,
-    requireInteraction: true,
-    actions: [
-      { action: 'take', title: '✓ Принял' },
-      { action: 'snooze', title: '⏰ +15 мин' },
-      { action: 'skip', title: '✗ Пропустить' },
-    ],
-    data: {
-      url: data.url || '/capsula/today',
-      doseId: data.doseId,
-      itemId: data.itemId,
-    },
-  };
+  try {
+    const data = event.data.json();
+    const title = data.title || 'Capsula';
+    const options = {
+      body: data.body || 'Время принять лекарство',
+      icon: '/capsula/icon-192.png',
+      badge: '/capsula/icon-192.png',
+      tag: data.tag || 'dose-reminder',
+      requireInteraction: true,
+      data: data.data || {},
+      actions: [
+        { action: 'take', title: '✓ Принял' },
+        { action: 'snooze', title: '⏰ Через 15 мин' },
+        { action: 'skip', title: '✗ Пропустить' },
+      ],
+      vibrate: [200, 100, 200],
+    };
 
-  event.waitUntil(
-    self.registration.showNotification(data.title || 'Capsula', options)
-  );
+    event.waitUntil(
+      self.registration.showNotification(title, options)
+    );
+  } catch (error) {
+    console.error('[SW] Error parsing push data:', error);
+  }
 });
 
-// Notification click event
+// Notification click handler
 self.addEventListener('notificationclick', (event) => {
+  console.log('[SW] Notification clicked:', event.action);
+  
   event.notification.close();
-
-  const action = event.action;
+  
   const data = event.notification.data;
 
-  if (action === 'take') {
-    // Mark dose as taken
+  // Handle different actions
+  if (event.action === 'take') {
+    // Mark dose as taken via postMessage
     event.waitUntil(
-      clients.matchAll({ type: 'window' }).then((clientList) => {
-        for (const client of clientList) {
-          client.postMessage({
-            type: 'DOSE_ACTION',
-            action: 'taken',
-            doseId: data.doseId,
-            itemId: data.itemId,
+      clients.matchAll({ type: 'window' })
+        .then((windowClients) => {
+          windowClients.forEach((client) => {
+            client.postMessage({
+              type: 'DOSE_ACTION',
+              action: 'taken',
+              data: data,
+            });
           });
-        }
-        if (clientList.length === 0) {
-          clients.openWindow(data.url + '?action=taken&doseId=' + data.doseId);
-        }
-      })
+        })
     );
-  } else if (action === 'snooze') {
+  } else if (event.action === 'snooze') {
     // Snooze for 15 minutes
     event.waitUntil(
-      clients.matchAll({ type: 'window' }).then((clientList) => {
-        for (const client of clientList) {
-          client.postMessage({
-            type: 'DOSE_ACTION',
-            action: 'snooze',
-            doseId: data.doseId,
-            itemId: data.itemId,
-            snoozeMinutes: 15,
+      clients.matchAll({ type: 'window' })
+        .then((windowClients) => {
+          windowClients.forEach((client) => {
+            client.postMessage({
+              type: 'DOSE_ACTION',
+              action: 'snooze',
+              minutes: 15,
+              data: data,
+            });
           });
-        }
-      })
+        })
     );
-  } else if (action === 'skip') {
-    // Skip dose
+  } else if (event.action === 'skip') {
     event.waitUntil(
-      clients.matchAll({ type: 'window' }).then((clientList) => {
-        for (const client of clientList) {
-          client.postMessage({
-            type: 'DOSE_ACTION',
-            action: 'skipped',
-            doseId: data.doseId,
-            itemId: data.itemId,
+      clients.matchAll({ type: 'window' })
+        .then((windowClients) => {
+          windowClients.forEach((client) => {
+            client.postMessage({
+              type: 'DOSE_ACTION',
+              action: 'skip',
+              data: data,
+            });
           });
-        }
-      })
+        })
     );
   } else {
-    // Default: open the app
+    // Default: open app
     event.waitUntil(
-      clients.matchAll({ type: 'window' }).then((clientList) => {
-        for (const client of clientList) {
-          if (client.url.includes('/capsula') && 'focus' in client) {
-            return client.focus();
+      clients.matchAll({ type: 'window', includeUncontrolled: true })
+        .then((windowClients) => {
+          // Focus existing window if available
+          for (const client of windowClients) {
+            if (client.url.includes('/capsula') && 'focus' in client) {
+              return client.focus();
+            }
           }
-        }
-        return clients.openWindow(data.url || '/capsula/today');
-      })
+          // Open new window
+          if (clients.openWindow) {
+            return clients.openWindow('/capsula/today');
+          }
+        })
     );
   }
 });
 
-// Message handler for scheduling notifications
-self.addEventListener('message', (event) => {
-  if (event.data.type === 'SCHEDULE_NOTIFICATION') {
-    const { delay, title, body, doseId, itemId } = event.data;
-    
-    setTimeout(() => {
-      self.registration.showNotification(title, {
-        body,
-        icon: '/capsula/icons/icon-192x192.png',
-        badge: '/capsula/icons/icon-72x72.png',
-        vibrate: [200, 100, 200],
-        tag: `dose-${doseId}`,
-        renotify: true,
-        requireInteraction: true,
-        actions: [
-          { action: 'take', title: '✓ Принял' },
-          { action: 'snooze', title: '⏰ +15 мин' },
-          { action: 'skip', title: '✗ Пропустить' },
-        ],
-        data: {
-          url: '/capsula/today',
-          doseId,
-          itemId,
-        },
-      });
-    }, delay);
+// Background sync for offline actions
+self.addEventListener('sync', (event) => {
+  console.log('[SW] Background sync:', event.tag);
+  
+  if (event.tag === 'dose-sync') {
+    event.waitUntil(syncDoseActions());
   }
 });
 
+async function syncDoseActions() {
+  // This would sync any offline dose actions when connection is restored
+  console.log('[SW] Syncing dose actions...');
+}
+
+// Message handler for communication with main app
+self.addEventListener('message', (event) => {
+  console.log('[SW] Message received:', event.data);
+  
+  if (event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});

@@ -1,34 +1,40 @@
 {
-  "name": "Capsula - Medication Tracker",
+  "name": "Capsula — Medication Tracker",
   "short_name": "Capsula",
-  "description": "Track your medications, supplements, and vitamins with smart reminders",
+  "description": "Track your medications, vitamins, and supplements with ease",
   "start_url": "/capsula/",
-  "scope": "/capsula/",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#0f0f14",
-  "theme_color": "#7C5CFC",
+  "background_color": "#0f0f0f",
+  "theme_color": "#7c3aed",
+  "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/capsula/icons/icon-192x192.svg",
+      "src": "icon-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/capsula/icons/icon-512x512.svg",
+      "src": "icon-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
-    },
-    {
-      "src": "/capsula/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
     }
   ],
   "categories": ["health", "medical", "lifestyle"],
   "lang": "ru",
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Сегодня",
+      "url": "/capsula/today",
+      "description": "Открыть расписание на сегодня"
+    },
+    {
+      "name": "Добавить препарат",
+      "url": "/capsula/library",
+      "description": "Добавить новый препарат"
+    }
+  ],
   "prefer_related_applications": false
 }
-

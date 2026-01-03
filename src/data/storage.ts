@@ -111,25 +111,188 @@ export interface AppSettings {
 }
 
 const STORAGE_KEY = 'capsula_app_state';
+const BACKUP_KEY = 'capsula_app_state_backup';
+const CHECKSUM_KEY = 'capsula_checksum';
+
+interface StorageSnapshot {
+  data: AppState;
+  checksum: string;
+  timestamp: string;
+}
+
+/**
+ * Simple hash function for checksum (djb2 algorithm)
+ */
+function calculateChecksum(data: string): string {
+  let hash = 5381;
+  for (let i = 0; i < data.length; i++) {
+    hash = ((hash << 5) + hash) + data.charCodeAt(i);
+  }
+  return (hash >>> 0).toString(16);
+}
+
+/**
+ * Verify data integrity using checksum
+ */
+function verifyChecksum(data: string, expectedChecksum: string): boolean {
+  return calculateChecksum(data) === expectedChecksum;
+}
 
 function loadState(): AppState | null {
   if (typeof window === 'undefined') return null;
+  
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
+    const checksum = localStorage.getItem(CHECKSUM_KEY);
+    
     if (!stored) return null;
+    
+    // Verify checksum if available
+    if (checksum && !verifyChecksum(stored, checksum)) {
+      console.warn('Storage corruption detected! Attempting recovery from backup...');
+      return loadFromBackup();
+    }
+    
     return JSON.parse(stored) as AppState;
   } catch (error) {
     console.error('Failed to load state:', error);
+    console.log('Attempting recovery from backup...');
+    return loadFromBackup();
+  }
+}
+
+function loadFromBackup(): AppState | null {
+  try {
+    const backup = localStorage.getItem(BACKUP_KEY);
+    if (!backup) {
+      console.warn('No backup available');
+      return null;
+    }
+    
+    const snapshot: StorageSnapshot = JSON.parse(backup);
+    
+    // Verify backup checksum
+    const dataStr = JSON.stringify(snapshot.data);
+    if (!verifyChecksum(dataStr, snapshot.checksum)) {
+      console.error('Backup is also corrupted!');
+      return null;
+    }
+    
+    console.log(`Recovered from backup dated ${snapshot.timestamp}`);
+    
+    // Restore from backup
+    localStorage.setItem(STORAGE_KEY, dataStr);
+    localStorage.setItem(CHECKSUM_KEY, snapshot.checksum);
+    
+    return snapshot.data;
+  } catch (error) {
+    console.error('Failed to recover from backup:', error);
     return null;
   }
 }
 
 function saveState(state: AppState): void {
   if (typeof window === 'undefined') return;
+  
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    const dataStr = JSON.stringify(state);
+    const checksum = calculateChecksum(dataStr);
+    
+    // Create backup of current state before overwriting
+    const currentData = localStorage.getItem(STORAGE_KEY);
+    const currentChecksum = localStorage.getItem(CHECKSUM_KEY);
+    
+    if (currentData && currentChecksum && verifyChecksum(currentData, currentChecksum)) {
+      // Current state is valid, save it as backup
+      const backup: StorageSnapshot = {
+        data: JSON.parse(currentData),
+        checksum: currentChecksum,
+        timestamp: new Date().toISOString(),
+      };
+      localStorage.setItem(BACKUP_KEY, JSON.stringify(backup));
+    }
+    
+    // Atomic write: write new state and checksum
+    localStorage.setItem(STORAGE_KEY, dataStr);
+    localStorage.setItem(CHECKSUM_KEY, checksum);
   } catch (error) {
     console.error('Failed to save state:', error);
+    throw new StorageError('Failed to save application state', error);
+  }
+}
+
+/**
+ * Custom error for storage failures
+ */
+export class StorageError extends Error {
+  constructor(message: string, public readonly cause?: unknown) {
+    super(message);
+    this.name = 'StorageError';
+  }
+}
+
+/**
+ * Check storage health
+ */
+export function checkStorageHealth(): { 
+  isHealthy: boolean; 
+  hasBackup: boolean; 
+  corruption: boolean;
+  message: string;
+} {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    const checksum = localStorage.getItem(CHECKSUM_KEY);
+    const backup = localStorage.getItem(BACKUP_KEY);
+    
+    if (!stored) {
+      return { isHealthy: true, hasBackup: false, corruption: false, message: 'No data stored' };
+    }
+    
+    const isChecksumValid = checksum && verifyChecksum(stored, checksum);
+    
+    return {
+      isHealthy: isChecksumValid || !checksum,
+      hasBackup: !!backup,
+      corruption: !isChecksumValid && !!checksum,
+      message: isChecksumValid ? 'Storage is healthy' : 'Checksum mismatch detected',
+    };
+  } catch (error) {
+    return {
+      isHealthy: false,
+      hasBackup: false,
+      corruption: true,
+      message: `Storage error: ${error}`,
+    };
+  }
+}
+
+/**
+ * Force restore from backup
+ */
+export function forceRestoreFromBackup(): AppState | null {
+  return loadFromBackup();
+}
+
+/**
+ * Create manual backup
+ */
+export function createManualBackup(): boolean {
+  try {
+    const state = loadAppState();
+    const dataStr = JSON.stringify(state);
+    const checksum = calculateChecksum(dataStr);
+    
+    const backup: StorageSnapshot = {
+      data: state,
+      checksum,
+      timestamp: new Date().toISOString(),
+    };
+    
+    localStorage.setItem(BACKUP_KEY, JSON.stringify(backup));
+    return true;
+  } catch {
+    return false;
   }
 }
 

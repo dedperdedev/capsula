@@ -42,3 +42,44 @@ ReactDOM.createRoot(rootElement).render(
   </React.StrictMode>,
 )
 
+// Register Service Worker for PWA support
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/capsula/sw.js')
+      .then((registration) => {
+        console.log('SW registered:', registration.scope);
+        
+        // Listen for updates
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // New content available, show update prompt
+                if (confirm('Доступна новая версия приложения. Обновить?')) {
+                  newWorker.postMessage({ type: 'SKIP_WAITING' });
+                  window.location.reload();
+                }
+              }
+            });
+          }
+        });
+      })
+      .catch((error) => {
+        console.error('SW registration failed:', error);
+      });
+  });
+  
+  // Handle SW messages (e.g., from push notifications)
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    console.log('SW message received:', event.data);
+    if (event.data.type === 'DOSE_ACTION') {
+      // Dispatch custom event for the app to handle
+      window.dispatchEvent(new CustomEvent('sw-dose-action', { 
+        detail: event.data 
+      }));
+    }
+  });
+}
+

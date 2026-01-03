@@ -1,5 +1,5 @@
-import { startOfDay, parse, getDay, differenceInDays, format } from 'date-fns';
-import type { Schedule, Item } from './types';
+import { startOfDay, parse, getDay, differenceInDays, format, differenceInMinutes } from 'date-fns';
+import type { Schedule, Item, DoseTimingStatus, ScheduleMode } from './types';
 import { schedulesStore, itemsStore, doseLogsStore } from './store';
 
 export type FoodRelation = 'with_meals' | 'after_meals' | 'any_time';
@@ -10,6 +10,7 @@ export interface DoseInstance {
   itemId: string;
   name: string;
   time: string;
+  originalTime: string; // Original scheduled time before snooze
   doseText: string;
   foodRelation: FoodRelation;
   durationDaysTotal?: number;
@@ -18,7 +19,15 @@ export interface DoseInstance {
   isSkipped?: boolean;
   isSnoozed?: boolean;
   form: string;
+  // Quality layer additions
+  timingStatus: DoseTimingStatus;
+  graceWindowMinutes: number;
+  takenAt?: string; // ISO string of when dose was taken
+  minutesFromPlanned?: number; // Difference from planned time (positive = late)
+  mode: ScheduleMode;
 }
+
+const DEFAULT_GRACE_WINDOW = 60; // minutes
 
 function mapFoodRelation(withFood?: 'before' | 'after' | 'none'): FoodRelation {
   if (withFood === 'after') return 'after_meals';
@@ -73,6 +82,161 @@ function isScheduleActiveToday(schedule: Schedule, today: Date): boolean {
   }
   
   return true;
+}
+
+/**
+ * Get PRN (as-needed) medications
+ */
+export function getPRNMedications(): { item: Item; schedule: Schedule; todayCount: number; canTake: boolean; warning?: string }[] {
+  const today = startOfDay(new Date());
+  const todayStr = today.toISOString().split('T')[0];
+  const schedules = schedulesStore.getEnabled().filter(s => s.mode === 'prn');
+  const items = itemsStore.getAll();
+  const logs = doseLogsStore.getAll();
+
+  return schedules.map(schedule => {
+    const item = items.find(i => i.id === schedule.itemId);
+    if (!item) return null;
+
+    // Count today's PRN doses
+    const todayLogs = logs.filter(l => 
+      l.itemId === schedule.itemId &&
+      l.action === 'taken' &&
+      l.createdAt.startsWith(todayStr)
+    );
+    const todayCount = todayLogs.length;
+
+    // Check constraints
+    let canTake = true;
+    let warning: string | undefined;
+
+    // Check max per day
+    if (schedule.prnMaxPerDay && todayCount >= schedule.prnMaxPerDay) {
+      canTake = false;
+      warning = `Достигнут лимит ${schedule.prnMaxPerDay} доз в день`;
+    }
+
+    // Check minimum interval
+    if (canTake && schedule.prnMinIntervalHours && todayLogs.length > 0) {
+      const lastDose = todayLogs.sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )[0];
+      const lastDoseTime = new Date(lastDose.createdAt);
+      const hoursSinceLast = differenceInMinutes(new Date(), lastDoseTime) / 60;
+      
+      if (hoursSinceLast < schedule.prnMinIntervalHours) {
+        const remainingMinutes = Math.ceil((schedule.prnMinIntervalHours - hoursSinceLast) * 60);
+        warning = `Подождите ${remainingMinutes} мин до следующего приема`;
+      }
+    }
+
+    return { item, schedule, todayCount, canTake, warning };
+  }).filter(Boolean) as { item: Item; schedule: Schedule; todayCount: number; canTake: boolean; warning?: string }[];
+}
+
+/**
+ * Log a PRN dose
+ */
+/**
+ * Check for postpone collisions
+ */
+export function checkPostponeCollision(
+  itemId: string, 
+  originalTime: string, 
+  newTime: Date
+): { hasCollision: boolean; collidingDose?: DoseInstance } {
+  const doses = getTodayDoses();
+  const newTimeStr = format(newTime, 'HH:mm');
+  
+  // Find doses at the new time (excluding the dose being postponed)
+  const collidingDose = doses.find(d => 
+    d.itemId === itemId &&
+    d.time === newTimeStr &&
+    d.originalTime !== originalTime
+  );
+
+  return {
+    hasCollision: !!collidingDose,
+    collidingDose,
+  };
+}
+
+/**
+ * Resolve postpone collision
+ */
+export type CollisionResolution = 'keep_both' | 'merge' | 'cancel_new' | 'cancel_old';
+
+export function resolvePostponeCollision(
+  itemId: string,
+  originalTime: string,
+  newTime: Date,
+  resolution: CollisionResolution
+): { success: boolean; message: string } {
+  const { hasCollision, collidingDose } = checkPostponeCollision(itemId, originalTime, newTime);
+  
+  if (!hasCollision || !collidingDose) {
+    return { success: true, message: 'No collision to resolve' };
+  }
+
+  switch (resolution) {
+    case 'keep_both':
+      // Just proceed, both doses will be shown
+      return { success: true, message: 'Both doses kept' };
+    
+    case 'merge':
+      // Skip the original dose being postponed
+      doseLogsStore.create({
+        itemId,
+        scheduledFor: new Date().toISOString(),
+        action: 'skipped',
+        reason: 'merged_with_existing',
+      });
+      return { success: true, message: 'Doses merged' };
+    
+    case 'cancel_new':
+      // Don't proceed with postpone
+      return { success: false, message: 'Postpone cancelled' };
+    
+    case 'cancel_old':
+      // Skip the existing dose at new time
+      const today = startOfDay(new Date());
+      const [h, m] = collidingDose.originalTime.split(':').map(Number);
+      const scheduledFor = new Date(today);
+      scheduledFor.setHours(h, m, 0, 0);
+      
+      doseLogsStore.create({
+        itemId,
+        scheduledFor: scheduledFor.toISOString(),
+        action: 'skipped',
+        reason: 'replaced_by_postpone',
+      });
+      return { success: true, message: 'Original dose cancelled' };
+    
+    default:
+      return { success: false, message: 'Unknown resolution' };
+  }
+}
+
+export function logPRNDose(itemId: string): { success: boolean; warning?: string } {
+  const prnMeds = getPRNMedications();
+  const prnMed = prnMeds.find(p => p.item.id === itemId);
+  
+  if (!prnMed) {
+    return { success: false, warning: 'Препарат не найден' };
+  }
+
+  if (!prnMed.canTake) {
+    return { success: false, warning: prnMed.warning };
+  }
+
+  // Log the dose
+  doseLogsStore.create({
+    itemId,
+    scheduledFor: new Date().toISOString(), // PRN has no scheduled time
+    action: 'taken',
+  });
+
+  return { success: true, warning: prnMed.warning };
 }
 
 export function getTodayDoses(date: Date = new Date()): DoseInstance[] {
@@ -141,6 +305,39 @@ export function getTodayDoses(date: Date = new Date()): DoseInstance[] {
           const isSkipped = !!skippedLog;
           const isSnoozed = !!snoozeLog;
 
+          // Calculate timing status
+          const graceWindow = schedule.graceWindowMinutes ?? DEFAULT_GRACE_WINDOW;
+          const now = new Date();
+          const mode: ScheduleMode = schedule.mode || 'scheduled';
+          
+          let timingStatus: DoseTimingStatus = 'pending';
+          let minutesFromPlanned: number | undefined;
+          let takenAt: string | undefined;
+
+          if (isTaken && takenLog) {
+            takenAt = takenLog.createdAt;
+            const takenTime = new Date(takenLog.createdAt);
+            minutesFromPlanned = differenceInMinutes(takenTime, originalScheduledFor);
+            
+            if (Math.abs(minutesFromPlanned) <= graceWindow) {
+              timingStatus = 'on_time';
+            } else if (minutesFromPlanned > 0) {
+              timingStatus = 'late';
+            } else {
+              timingStatus = 'on_time'; // Early is always on time
+            }
+          } else if (isSkipped) {
+            timingStatus = 'missed';
+          } else {
+            // Check if past due
+            const minutesPastDue = differenceInMinutes(now, scheduledFor);
+            if (minutesPastDue > graceWindow) {
+              timingStatus = 'late'; // Past grace window, still pending but late
+            } else {
+              timingStatus = 'pending';
+            }
+          }
+
           const dateStr = today.toISOString().split('T')[0];
           const id = `${schedule.id}-${dateStr}-${timeStr}`;
 
@@ -150,14 +347,20 @@ export function getTodayDoses(date: Date = new Date()): DoseInstance[] {
             itemId: item.id,
             name: item.name,
             time: format(scheduledFor, 'HH:mm'),
+            originalTime: timeStr,
             doseText,
             foodRelation,
             durationDaysTotal: duration.total,
             daysRemaining: duration.remaining,
             isTaken,
             isSkipped,
-            isSnoozed: isSnoozed,
+            isSnoozed,
             form: item.form,
+            timingStatus,
+            graceWindowMinutes: graceWindow,
+            takenAt,
+            minutesFromPlanned,
+            mode,
           });
         }
       } catch (error) {

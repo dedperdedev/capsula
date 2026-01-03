@@ -1,219 +1,244 @@
 /**
- * Notification Hook
- * Handles browser notification permissions and scheduling
+ * Push Notifications Hook
+ * Manages notification permissions and scheduling
  */
 
 import { useState, useEffect, useCallback } from 'react';
-
-export type NotificationPermission = 'default' | 'granted' | 'denied';
+import { loadAppState } from '../data/storage';
+import type { DoseInstance } from '../data/todayDoses';
 
 export interface NotificationState {
-  permission: NotificationPermission;
+  permission: NotificationPermission | 'unsupported';
   isSupported: boolean;
-  isServiceWorkerReady: boolean;
+  isPWA: boolean;
+  canSchedule: boolean;
 }
-
-export interface ScheduledNotification {
-  id: string;
-  title: string;
-  body: string;
-  scheduledTime: Date;
-  doseId: string;
-  itemId: string;
-}
-
-const NOTIFICATION_SETTINGS_KEY = 'capsula_notification_settings';
-
-export interface NotificationSettings {
-  enabled: boolean;
-  sound: boolean;
-  vibration: boolean;
-  reminderBeforeMinutes: number; // 0 = at scheduled time, 5 = 5 min before, etc.
-}
-
-const DEFAULT_SETTINGS: NotificationSettings = {
-  enabled: true,
-  sound: true,
-  vibration: true,
-  reminderBeforeMinutes: 0,
-};
 
 export function useNotifications() {
   const [state, setState] = useState<NotificationState>({
     permission: 'default',
     isSupported: false,
-    isServiceWorkerReady: false,
+    isPWA: false,
+    canSchedule: false,
   });
-  const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
-    // Check support
+    if (typeof window === 'undefined') return;
+
     const isSupported = 'Notification' in window && 'serviceWorker' in navigator;
-    
-    // Load settings
-    try {
-      const stored = localStorage.getItem(NOTIFICATION_SETTINGS_KEY);
-      if (stored) {
-        setSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(stored) });
-      }
-    } catch {}
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
+                  (window.navigator as any).standalone === true;
+    const canSchedule = isSupported && 'showTrigger' in (Notification.prototype as any);
 
-    if (isSupported) {
-      setState(prev => ({
-        ...prev,
-        isSupported: true,
-        permission: Notification.permission as NotificationPermission,
-      }));
-
-      // Register service worker
-      navigator.serviceWorker.register('/capsula/sw.js')
-        .then(() => {
-          setState(prev => ({ ...prev, isServiceWorkerReady: true }));
-        })
-        .catch(err => {
-          console.warn('Service worker registration failed:', err);
-        });
-    }
+    setState({
+      permission: isSupported ? Notification.permission : 'unsupported',
+      isSupported,
+      isPWA,
+      canSchedule,
+    });
   }, []);
 
+  /**
+   * Request notification permission
+   */
   const requestPermission = useCallback(async (): Promise<boolean> => {
-    if (!state.isSupported) return false;
+    if (!state.isSupported) {
+      console.log('Notifications not supported');
+      return false;
+    }
 
     try {
       const permission = await Notification.requestPermission();
-      setState(prev => ({ ...prev, permission: permission as NotificationPermission }));
+      setState(prev => ({ ...prev, permission }));
       return permission === 'granted';
-    } catch (err) {
-      console.error('Failed to request notification permission:', err);
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
       return false;
     }
   }, [state.isSupported]);
 
-  const updateSettings = useCallback((updates: Partial<NotificationSettings>) => {
-    const newSettings = { ...settings, ...updates };
-    setSettings(newSettings);
-    localStorage.setItem(NOTIFICATION_SETTINGS_KEY, JSON.stringify(newSettings));
-  }, [settings]);
-
-  const scheduleNotification = useCallback(async (notification: ScheduledNotification) => {
-    if (!state.isSupported || state.permission !== 'granted' || !settings.enabled) {
+  /**
+   * Show an immediate notification
+   */
+  const showNotification = useCallback(async (
+    title: string,
+    options?: NotificationOptions & { data?: Record<string, unknown>; actions?: { action: string; title: string }[] }
+  ): Promise<boolean> => {
+    if (!state.isSupported || state.permission !== 'granted') {
+      console.log('Cannot show notification: not permitted');
       return false;
     }
 
-    const delay = notification.scheduledTime.getTime() - Date.now() - (settings.reminderBeforeMinutes * 60 * 1000);
-    
-    if (delay <= 0) {
-      // Time has passed, show immediately
-      showNotification(notification.title, notification.body, notification.doseId, notification.itemId);
-      return true;
-    }
-
-    // Use service worker for scheduled notifications
-    if (state.isServiceWorkerReady) {
+    try {
       const registration = await navigator.serviceWorker.ready;
-      registration.active?.postMessage({
-        type: 'SCHEDULE_NOTIFICATION',
-        delay,
-        title: notification.title,
-        body: notification.body,
-        doseId: notification.doseId,
-        itemId: notification.itemId,
-      });
+      await registration.showNotification(title, {
+        icon: '/capsula/icon-192.png',
+        badge: '/capsula/icon-192.png',
+        requireInteraction: true,
+        ...options,
+      } as NotificationOptions);
       return true;
+    } catch (error) {
+      console.error('Error showing notification:', error);
+      return false;
+    }
+  }, [state.isSupported, state.permission]);
+
+  /**
+   * Schedule a dose reminder notification
+   */
+  const scheduleDoseReminder = useCallback(async (
+    dose: DoseInstance,
+    minutesBefore: number = 0
+  ): Promise<boolean> => {
+    if (!state.isSupported || state.permission !== 'granted') {
+      return false;
     }
 
-    // Fallback: use setTimeout (won't work if tab is closed)
-    setTimeout(() => {
-      showNotification(notification.title, notification.body, notification.doseId, notification.itemId);
-    }, delay);
-    
-    return true;
-  }, [state, settings]);
+    const appState = loadAppState();
+    const settings = appState.settings;
 
-  const showNotification = useCallback((
-    title: string,
-    body: string,
-    doseId: string,
-    _itemId?: string
-  ) => {
-    if (!state.isSupported || state.permission !== 'granted') return;
+    // Check quiet hours
+    if (settings.quietHoursStart && settings.quietHoursEnd) {
+      const now = new Date();
+      const currentTime = now.getHours() * 60 + now.getMinutes();
+      const [startH, startM] = settings.quietHoursStart.split(':').map(Number);
+      const [endH, endM] = settings.quietHoursEnd.split(':').map(Number);
+      const quietStart = startH * 60 + startM;
+      const quietEnd = endH * 60 + endM;
 
-    const notification = new Notification(title, {
-      body,
-      icon: '/capsula/icons/icon-192x192.png',
-      badge: '/capsula/icons/icon-72x72.png',
-      tag: `dose-${doseId}`,
-      requireInteraction: true,
-      silent: !settings.sound,
-    });
-
-    notification.onclick = () => {
-      window.focus();
-      notification.close();
-      // Navigate to today page if not already there
-      if (!window.location.pathname.includes('/today')) {
-        window.location.href = '/capsula/today';
+      if (quietStart <= currentTime && currentTime <= quietEnd) {
+        console.log('In quiet hours, skipping notification');
+        return false;
       }
-    };
-  }, [state, settings]);
+    }
 
-  const cancelAllNotifications = useCallback(async () => {
-    if (state.isServiceWorkerReady) {
+    const [hours, minutes] = dose.time.split(':').map(Number);
+    const scheduledTime = new Date();
+    scheduledTime.setHours(hours, minutes - minutesBefore, 0, 0);
+
+    // If time is in the past, don't schedule
+    if (scheduledTime <= new Date()) {
+      return false;
+    }
+
+    try {
       const registration = await navigator.serviceWorker.ready;
-      const notifications = await registration.getNotifications();
+      
+      // Use scheduled notifications if supported (Chrome only for now)
+      if (state.canSchedule) {
+        await registration.showNotification(`Время принять ${dose.name}`, {
+          body: `${dose.doseText}${minutesBefore > 0 ? ` (через ${minutesBefore} мин)` : ''}`,
+          icon: '/capsula/icon-192.png',
+          badge: '/capsula/icon-192.png',
+          tag: `dose-${dose.id}`,
+          requireInteraction: true,
+          data: {
+            doseId: dose.id,
+            itemId: dose.itemId,
+            scheduleId: dose.scheduleId,
+            scheduledTime: scheduledTime.toISOString(),
+          },
+          // @ts-expect-error - showTrigger is experimental
+          showTrigger: new TimestampTrigger(scheduledTime.getTime()),
+        } as NotificationOptions);
+        return true;
+      }
+
+      // Fallback: use setTimeout for scheduling (only works while app is open)
+      const delay = scheduledTime.getTime() - Date.now();
+      if (delay > 0) {
+        setTimeout(() => {
+          showNotification(`Время принять ${dose.name}`, {
+            body: dose.doseText,
+            tag: `dose-${dose.id}`,
+            data: {
+              doseId: dose.id,
+              itemId: dose.itemId,
+              scheduleId: dose.scheduleId,
+            },
+          });
+        }, delay);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error scheduling notification:', error);
+      return false;
+    }
+  }, [state.isSupported, state.permission, state.canSchedule, showNotification]);
+
+  /**
+   * Cancel all pending notifications for a dose
+   */
+  const cancelDoseReminder = useCallback(async (doseId: string): Promise<void> => {
+    if (!state.isSupported) return;
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const notifications = await registration.getNotifications({ tag: `dose-${doseId}` });
       notifications.forEach(n => n.close());
+    } catch (error) {
+      console.error('Error canceling notification:', error);
     }
-  }, [state.isServiceWorkerReady]);
+  }, [state.isSupported]);
 
-  const getNotificationStatus = useCallback(() => {
-    if (!state.isSupported) {
-      return {
-        available: false,
-        reason: 'not_supported' as const,
-        message: 'Уведомления не поддерживаются в этом браузере',
-      };
+  /**
+   * Get pending notifications
+   */
+  const getPendingNotifications = useCallback(async (): Promise<Notification[]> => {
+    if (!state.isSupported) return [];
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      return await registration.getNotifications();
+    } catch (error) {
+      console.error('Error getting notifications:', error);
+      return [];
     }
-
-    if (state.permission === 'denied') {
-      return {
-        available: false,
-        reason: 'denied' as const,
-        message: 'Уведомления заблокированы. Разрешите в настройках браузера.',
-      };
-    }
-
-    if (state.permission === 'default') {
-      return {
-        available: false,
-        reason: 'not_requested' as const,
-        message: 'Разрешите уведомления для напоминаний о приеме',
-      };
-    }
-
-    if (!settings.enabled) {
-      return {
-        available: false,
-        reason: 'disabled' as const,
-        message: 'Уведомления отключены в настройках',
-      };
-    }
-
-    return {
-      available: true,
-      reason: 'ready' as const,
-      message: 'Уведомления включены',
-    };
-  }, [state, settings]);
+  }, [state.isSupported]);
 
   return {
     ...state,
-    settings,
-    updateSettings,
     requestPermission,
-    scheduleNotification,
     showNotification,
-    cancelAllNotifications,
-    getNotificationStatus,
+    scheduleDoseReminder,
+    cancelDoseReminder,
+    getPendingNotifications,
   };
 }
 
+/**
+ * Helper to check if we're running as PWA
+ */
+export function isPWA(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(display-mode: standalone)').matches ||
+         (window.navigator as any).standalone === true;
+}
+
+/**
+ * Helper to check notification support limitations
+ */
+export function getNotificationLimitations(): string[] {
+  const limitations: string[] = [];
+
+  if (!('Notification' in window)) {
+    limitations.push('Уведомления не поддерживаются в этом браузере');
+  }
+
+  if (!('serviceWorker' in navigator)) {
+    limitations.push('Service Worker не поддерживается');
+  }
+
+  if (!isPWA()) {
+    limitations.push('Для надежных уведомлений установите приложение на главный экран');
+  }
+
+  if (!('showTrigger' in (Notification.prototype as any))) {
+    limitations.push('Запланированные уведомления не поддерживаются - уведомления работают только при открытом приложении');
+  }
+
+  return limitations;
+}

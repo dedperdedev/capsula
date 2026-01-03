@@ -11,6 +11,24 @@ try {
   console.error('Error applying theme:', error);
 }
 
+// Handle GitHub Pages deep links
+// If URL has ?p= parameter, redirect to that path
+if (typeof window !== 'undefined') {
+  const urlParams = new URLSearchParams(window.location.search);
+  const pathParam = urlParams.get('p');
+  if (pathParam) {
+    const decodedPath = decodeURIComponent(pathParam);
+    // Remove /capsula prefix if present in path
+    const cleanPath = decodedPath.startsWith('/capsula') 
+      ? decodedPath.substring('/capsula'.length) || '/'
+      : decodedPath;
+    
+    // Update URL without reload
+    const newUrl = window.location.origin + '/capsula' + cleanPath + window.location.hash;
+    window.history.replaceState({}, '', newUrl);
+  }
+}
+
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error('Root element not found');

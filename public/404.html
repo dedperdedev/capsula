@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Capsula</title>
+    <script type="text/javascript">
+      // Single Page Apps for GitHub Pages
+      // Redirects to /capsula/?p=<path> and then index.html handles the routing
+      (function() {
+        var pathSegmentsToKeep = 1; // Keep /capsula
+        var l = window.location;
+        var path = l.pathname;
+        
+        // Remove /capsula prefix if present
+        if (path.startsWith('/capsula/')) {
+          path = path.substring('/capsula'.length);
+        }
+        
+        // Build redirect URL
+        var redirectPath = '/capsula/?p=' + encodeURIComponent(path);
+        if (l.search) {
+          redirectPath += '&' + l.search.substring(1);
+        }
+        redirectPath += l.hash;
+        
+        window.location.replace(l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') + redirectPath);
+      })();
+    </script>
+  </head>
+  <body>
+    <p>Redirecting...</p>
+  </body>
+</html>
+

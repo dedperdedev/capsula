@@ -7,6 +7,7 @@ import { LibraryPage } from '../pages/LibraryPage';
 import { InsightsPage } from '../pages/InsightsPage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { DrugDetailsPage } from '../pages/DrugDetailsPage';
+import { TestPage } from '../pages/TestPage';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
           <Route path="/insights" element={<InsightsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/drug/:id" element={<DrugDetailsPage />} />
+          <Route path="/test" element={<TestPage />} />
         </Routes>
         <ToastContainer />
       </Shell>

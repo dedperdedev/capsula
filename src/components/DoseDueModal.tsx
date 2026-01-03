@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CheckCircle2, XCircle, Clock } from 'lucide-react';
 import { Modal } from './shared/Modal';
+import { Button } from './shared/Button';
 import { useI18n } from '../hooks/useI18n';
 import { doseLogsStore, inventoryStore, schedulesStore } from '../data/store';
 import { toast } from './shared/Toast';
@@ -20,12 +21,20 @@ const SKIP_REASONS = [
   { id: 'other', key: 'dose.skipOther' },
 ];
 
+const SNOOZE_PRESETS = [
+  { minutes: 10, label: { ru: '+10 мин', en: '+10 min' } },
+  { minutes: 30, label: { ru: '+30 мин', en: '+30 min' } },
+  { minutes: 60, label: { ru: '+1 час', en: '+1 hour' } },
+  { minutes: 120, label: { ru: '+2 часа', en: '+2 hours' } },
+];
+
 export function DoseDueModal({ isOpen, onClose, dose, onActionComplete }: DoseDueModalProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [skipReason, setSkipReason] = useState<string>('');
   const [snoozeMinutes, setSnoozeMinutes] = useState<number>(15);
   const [customSnooze, setCustomSnooze] = useState<boolean>(false);
   const [showSkipReasons, setShowSkipReasons] = useState<boolean>(false);
+  const [showSnoozePresets, setShowSnoozePresets] = useState<boolean>(false);
 
   if (!dose) return null;
 
@@ -154,11 +163,17 @@ export function DoseDueModal({ isOpen, onClose, dose, onActionComplete }: DoseDu
     resetForm();
   };
 
+  const handleSnoozePreset = (minutes: number) => {
+    setSnoozeMinutes(minutes);
+    setTimeout(() => handleSnooze(), 100);
+  };
+
   const resetForm = () => {
     setSkipReason('');
     setSnoozeMinutes(15);
     setCustomSnooze(false);
     setShowSkipReasons(false);
+    setShowSnoozePresets(false);
   };
 
   const handleClose = () => {
@@ -228,41 +243,67 @@ export function DoseDueModal({ isOpen, onClose, dose, onActionComplete }: DoseDu
 
           {/* Snooze Button - Blue */}
           <div className="space-y-2">
-            <button
-              onClick={handleSnooze}
-              className="w-full px-4 py-3 rounded-[18px] bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white font-black text-sm transition-colors flex items-center justify-center gap-2 shadow-md"
-            >
-              <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
-                <Clock size={16} className="text-white" strokeWidth={2.5} />
-              </div>
-              <span>{t('dose.snooze')}</span>
-            </button>
-
-            {!customSnooze && (
+            {!showSnoozePresets ? (
               <button
-                onClick={() => setCustomSnooze(true)}
-                className="w-full text-sm text-[var(--muted2)] hover:text-[var(--text)] transition-colors text-center"
+                onClick={() => setShowSnoozePresets(true)}
+                className="w-full px-4 py-3 rounded-[18px] bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white font-black text-sm transition-colors flex items-center justify-center gap-2 shadow-md"
               >
-                {t('dose.customSnooze')}
+                <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+                  <Clock size={16} className="text-white" strokeWidth={2.5} />
+                </div>
+                <span>{t('dose.snooze')}</span>
               </button>
-            )}
-
-            {customSnooze && (
+            ) : (
               <div className="space-y-2">
-                <label className="block text-sm text-[var(--muted2)]">
-                  {t('dose.enterMinutes')}
-                </label>
-                <input
-                  type="number"
-                  min="5"
-                  max="240"
-                  value={snoozeMinutes}
-                  onChange={(e) => setSnoozeMinutes(parseInt(e.target.value, 10) || 15)}
-                  className="w-full px-4 py-2 rounded-[18px] border border-[var(--stroke)] bg-[var(--surface2)] text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--acc2)]"
-                />
+                <p className="text-sm text-[var(--muted2)]">
+                  {locale === 'ru' ? 'Перенести на:' : 'Postpone by:'}
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {SNOOZE_PRESETS.map((preset) => (
+                    <button
+                      key={preset.minutes}
+                      onClick={() => handleSnoozePreset(preset.minutes)}
+                      className="px-3 py-2.5 text-sm rounded-[18px] bg-blue-500 hover:bg-blue-600 text-white font-semibold transition-colors"
+                    >
+                      {preset.label[locale]}
+                    </button>
+                  ))}
+                </div>
+                
+                {!customSnooze ? (
+                  <button
+                    onClick={() => setCustomSnooze(true)}
+                    className="w-full text-sm text-[var(--muted2)] hover:text-[var(--text)] transition-colors text-center py-2"
+                  >
+                    {locale === 'ru' ? 'Другое время...' : 'Custom time...'}
+                  </button>
+                ) : (
+                  <div className="space-y-2 mt-2">
+                    <label className="block text-sm text-[var(--muted2)]">
+                      {t('dose.enterMinutes')}
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        min="5"
+                        max="480"
+                        value={snoozeMinutes}
+                        onChange={(e) => setSnoozeMinutes(parseInt(e.target.value, 10) || 15)}
+                        className="flex-1 px-4 py-2 rounded-[18px] border border-[var(--stroke)] bg-[var(--surface2)] text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--acc2)]"
+                      />
+                      <Button variant="primary" onClick={handleSnooze}>
+                        OK
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 <button
-                  onClick={() => setCustomSnooze(false)}
-                  className="text-xs text-[var(--muted2)] hover:text-[var(--text)] transition-colors"
+                  onClick={() => {
+                    setShowSnoozePresets(false);
+                    setCustomSnooze(false);
+                  }}
+                  className="w-full text-xs text-[var(--muted2)] hover:text-[var(--text)] transition-colors py-1"
                 >
                   {t('common.cancel')}
                 </button>

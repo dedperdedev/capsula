@@ -11,17 +11,10 @@ import {
   saveAppState, 
   appendEvent,
   type AppState,
-  type Event,
-  type Profile,
 } from '../data/storage';
 import {
   getTodayDoses,
   getNextDose,
-  logDoseTaken,
-  logDoseSkipped,
-  logDosePostponed,
-  getInventoryStatus,
-  getEnoughUntil,
 } from '../data/eventLog';
 
 export function TestPage() {

@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react';
-import { Moon, Sun, AlertTriangle, Languages, Bell, Database } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Moon, Sun, AlertTriangle, Languages, Bell, Database, Download, Upload, Trash2, Printer } from 'lucide-react';
 import { TopBar } from '../components/shared/TopBar';
 import { Card } from '../components/shared/Card';
 import { Button } from '../components/shared/Button';
+import { Modal } from '../components/shared/Modal';
 import { itemsStore, inventoryStore } from '../data/store';
 import { getTheme, setTheme, ensureThemeApplied } from '../lib/theme';
 import { toast } from '../components/shared/Toast';
 import { useI18n, setLocale } from '../hooks/useI18n';
 import { loadDemoData } from '../data/seedData';
+import { downloadBackup, validateBackup, importData, resetAllData, printReport, type BackupPreview } from '../data/backup';
+import { loadAppState } from '../data/storage';
 
 const NOTIFICATIONS_KEY = 'capsula_notifications_enabled';
 
@@ -18,6 +21,12 @@ export function SettingsPage() {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem(NOTIFICATIONS_KEY) === 'true';
   });
+  const [importPreview, setImportPreview] = useState<BackupPreview | null>(null);
+  const [importFile, setImportFile] = useState<any>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     ensureThemeApplied();
@@ -40,6 +49,83 @@ export function SettingsPage() {
     toast.success(
       newState ? t('settings.notificationsEnabled') : t('settings.notificationsDisabled')
     );
+  };
+
+  const handleExport = () => {
+    try {
+      downloadBackup();
+      toast.success(locale === 'ru' ? 'Резервная копия скачана' : 'Backup downloaded');
+    } catch (error) {
+      toast.error(locale === 'ru' ? 'Ошибка экспорта' : 'Export error');
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const validation = validateBackup(data);
+      
+      if (!validation.valid) {
+        toast.error(validation.error || (locale === 'ru' ? 'Неверный формат файла' : 'Invalid file format'));
+        return;
+      }
+
+      setImportPreview(validation.preview || null);
+      setImportFile(data);
+      setIsImportModalOpen(true);
+    } catch (error) {
+      toast.error(locale === 'ru' ? 'Не удалось прочитать файл' : 'Failed to read file');
+    }
+
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleImportConfirm = () => {
+    if (!importFile) return;
+
+    const result = importData(importFile);
+    if (result.success) {
+      toast.success(locale === 'ru' ? 'Данные успешно импортированы' : 'Data imported successfully');
+      setIsImportModalOpen(false);
+      setImportPreview(null);
+      setImportFile(null);
+      setTimeout(() => window.location.reload(), 500);
+    } else {
+      toast.error(result.error || (locale === 'ru' ? 'Ошибка импорта' : 'Import error'));
+    }
+  };
+
+  const handleResetConfirm = () => {
+    if (resetConfirmText !== 'DELETE') {
+      toast.error(locale === 'ru' ? 'Введите DELETE для подтверждения' : 'Type DELETE to confirm');
+      return;
+    }
+
+    resetAllData();
+    toast.success(locale === 'ru' ? 'Все данные удалены' : 'All data reset');
+    setIsResetModalOpen(false);
+    setResetConfirmText('');
+    setTimeout(() => window.location.reload(), 500);
+  };
+
+  const handlePrintReport = () => {
+    const state = loadAppState();
+    if (state.activeProfileId) {
+      printReport(state.activeProfileId, 30);
+    } else {
+      toast.error(locale === 'ru' ? 'Нет активного профиля' : 'No active profile');
+    }
   };
 
   return (
@@ -148,6 +234,53 @@ export function SettingsPage() {
           </div>
         </Card>
 
+        {/* Backup Section */}
+        <Card>
+          <h3 className="font-semibold text-[var(--text)] mb-4">
+            {locale === 'ru' ? 'Резервное копирование' : 'Backup & Restore'}
+          </h3>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={handleExport} fullWidth>
+                <Download size={16} className="mr-2" />
+                {locale === 'ru' ? 'Экспорт' : 'Export'}
+              </Button>
+              <Button variant="ghost" onClick={handleImportClick} fullWidth>
+                <Upload size={16} className="mr-2" />
+                {locale === 'ru' ? 'Импорт' : 'Import'}
+              </Button>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={handlePrintReport} fullWidth>
+                <Printer size={16} className="mr-2" />
+                {locale === 'ru' ? 'Печать отчета' : 'Print Report'}
+              </Button>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+          </div>
+        </Card>
+
+        {/* Danger Zone */}
+        <Card className="border-red-200 dark:border-red-800">
+          <h3 className="font-semibold text-[var(--danger)] mb-4">
+            {locale === 'ru' ? 'Опасная зона' : 'Danger Zone'}
+          </h3>
+          <Button 
+            variant="danger" 
+            onClick={() => setIsResetModalOpen(true)}
+            fullWidth
+          >
+            <Trash2 size={16} className="mr-2" />
+            {locale === 'ru' ? 'Сбросить все данные' : 'Reset All Data'}
+          </Button>
+        </Card>
+
         <Card>
           <div className="text-sm text-[var(--muted2)]">
             <p className="font-semibold text-[var(--text)] mb-2">{t('settings.medicalDisclaimer')}</p>
@@ -157,6 +290,97 @@ export function SettingsPage() {
           </div>
         </Card>
       </div>
+
+      {/* Import Preview Modal */}
+      <Modal
+        isOpen={isImportModalOpen}
+        onClose={() => {
+          setIsImportModalOpen(false);
+          setImportPreview(null);
+          setImportFile(null);
+        }}
+        title={locale === 'ru' ? 'Импорт данных' : 'Import Data'}
+        size="md"
+      >
+        {importPreview && (
+          <div className="space-y-4">
+            <div className="bg-[var(--surface2)] rounded-lg p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-[var(--muted2)]">{locale === 'ru' ? 'Дата экспорта' : 'Export date'}:</span>
+                <span className="text-[var(--text)]">{new Date(importPreview.exportDate).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-[var(--muted2)]">{locale === 'ru' ? 'Профилей' : 'Profiles'}:</span>
+                <span className="text-[var(--text)]">{importPreview.profileCount}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-[var(--muted2)]">{locale === 'ru' ? 'Препаратов' : 'Medications'}:</span>
+                <span className="text-[var(--text)]">{importPreview.medicationCount}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-[var(--muted2)]">{locale === 'ru' ? 'Расписаний' : 'Schedules'}:</span>
+                <span className="text-[var(--text)]">{importPreview.scheduleCount}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-[var(--muted2)]">{locale === 'ru' ? 'Событий' : 'Events'}:</span>
+                <span className="text-[var(--text)]">{importPreview.eventCount}</span>
+              </div>
+            </div>
+            <p className="text-sm text-[var(--danger)]">
+              {locale === 'ru' 
+                ? 'Внимание: импорт заменит все текущие данные!' 
+                : 'Warning: Import will replace all current data!'}
+            </p>
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={() => setIsImportModalOpen(false)} fullWidth>
+                {locale === 'ru' ? 'Отмена' : 'Cancel'}
+              </Button>
+              <Button variant="primary" onClick={handleImportConfirm} fullWidth>
+                {locale === 'ru' ? 'Импортировать' : 'Import'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Reset Confirmation Modal */}
+      <Modal
+        isOpen={isResetModalOpen}
+        onClose={() => {
+          setIsResetModalOpen(false);
+          setResetConfirmText('');
+        }}
+        title={locale === 'ru' ? 'Сброс данных' : 'Reset Data'}
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-[var(--text)]">
+            {locale === 'ru' 
+              ? 'Это действие удалит все данные приложения. Для подтверждения введите DELETE:' 
+              : 'This will delete all app data. Type DELETE to confirm:'}
+          </p>
+          <input
+            type="text"
+            value={resetConfirmText}
+            onChange={(e) => setResetConfirmText(e.target.value)}
+            placeholder="DELETE"
+            className="w-full px-4 py-2 border border-[var(--stroke)] rounded-lg bg-[var(--surface)] text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--danger)]"
+          />
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => setIsResetModalOpen(false)} fullWidth>
+              {locale === 'ru' ? 'Отмена' : 'Cancel'}
+            </Button>
+            <Button 
+              variant="danger" 
+              onClick={handleResetConfirm} 
+              fullWidth
+              disabled={resetConfirmText !== 'DELETE'}
+            >
+              {locale === 'ru' ? 'Удалить все' : 'Delete All'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

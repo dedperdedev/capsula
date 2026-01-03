@@ -1,12 +1,14 @@
 import { type ReactNode, useState, useEffect } from 'react';
 import { BottomNav } from './BottomNav';
-import { ScanLine, User } from 'lucide-react';
+import { ScanLine, User, Plus } from 'lucide-react';
 import { DrugSearch } from './DrugSearch';
 import { ProfileSwitcher } from './ProfileSwitcher';
+import { QuickAddWizard } from './QuickAddWizard';
 import { loadAppState } from '../data/storage';
 
 export function Shell({ children }: { children: ReactNode }) {
   const [isProfileSwitcherOpen, setIsProfileSwitcherOpen] = useState(false);
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [activeProfile, setActiveProfile] = useState<{ name: string; color: string } | null>(null);
 
   const loadProfile = () => {
@@ -73,6 +75,22 @@ export function Shell({ children }: { children: ReactNode }) {
             {children}
           </div>
         </main>
+
+        {/* FAB - Quick Add Button */}
+        <button
+          onClick={() => setIsQuickAddOpen(true)}
+          className="fixed bottom-24 right-4 w-14 h-14 rounded-full bg-[var(--acc)] text-white shadow-lg flex items-center justify-center transition-transform active:scale-95 hover:bg-[var(--acc2)] z-40"
+          style={{ maxWidth: '430px', right: 'calc(50% - 215px + 16px)' }}
+          aria-label="Quick add medication"
+        >
+          <Plus size={28} strokeWidth={2.5} />
+        </button>
+
+        <QuickAddWizard
+          isOpen={isQuickAddOpen}
+          onClose={() => setIsQuickAddOpen(false)}
+          onComplete={() => window.location.reload()}
+        />
         
         {/* Bottom navigation - fixed, above everything */}
         <BottomNav />

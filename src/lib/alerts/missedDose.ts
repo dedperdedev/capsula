@@ -115,13 +115,19 @@ export function triggerGuardianNotification(alert: MissedDoseAlert): void {
   });
 
   // Try to show push notification
-  if ('Notification' in window && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-    new Notification('⚠️ Пропущенный прием', {
-      body: `${alert.medicationName} не был принят вовремя`,
-      icon: '/capsula/icon-192.png',
-      tag: `missed-${alert.id}`,
-      requireInteraction: true,
-    });
+  try {
+    const NotificationClass = typeof window !== 'undefined' ? (window as any).Notification : null;
+    if (NotificationClass && NotificationClass.permission === 'granted') {
+      new NotificationClass('⚠️ Пропущенный прием', {
+        body: `${alert.medicationName} не был принят вовремя`,
+        icon: '/capsula/icon-192.png',
+        tag: `missed-${alert.id}`,
+        requireInteraction: true,
+      });
+    }
+  } catch (error) {
+    // Notification API not available, silently fail
+    console.debug('Notification not available:', error);
   }
 }
 

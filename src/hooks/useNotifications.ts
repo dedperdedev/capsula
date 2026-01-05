@@ -25,20 +25,34 @@ export function useNotifications() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const isSupported = 'Notification' in window && 'serviceWorker' in navigator;
+    // More strict check: verify Notification actually exists
+    let isSupported = false;
+    try {
+      isSupported = typeof window !== 'undefined' && 
+                   'Notification' in window && 
+                   typeof (window as any).Notification !== 'undefined' &&
+                   'serviceWorker' in navigator;
+    } catch {
+      isSupported = false;
+    }
+
     const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
                   (window.navigator as any).standalone === true;
     
     let permission: NotificationPermission | 'unsupported' = 'unsupported';
     let canSchedule = false;
     
-    if (isSupported && typeof Notification !== 'undefined') {
+    if (isSupported) {
       try {
-        permission = Notification.permission;
-        canSchedule = 'showTrigger' in (Notification.prototype as any);
+        const NotificationClass = (window as any).Notification;
+        if (NotificationClass && typeof NotificationClass.permission !== 'undefined') {
+          permission = NotificationClass.permission;
+          canSchedule = 'showTrigger' in (NotificationClass.prototype as any);
+        }
       } catch (error) {
         console.warn('Error accessing Notification API:', error);
         permission = 'unsupported';
+        isSupported = false;
       }
     }
 
@@ -54,13 +68,17 @@ export function useNotifications() {
    * Request notification permission
    */
   const requestPermission = useCallback(async (): Promise<boolean> => {
-    if (!state.isSupported || typeof Notification === 'undefined') {
+    if (!state.isSupported || typeof window === 'undefined') {
       console.log('Notifications not supported');
       return false;
     }
 
     try {
-      const permission = await Notification.requestPermission();
+      const NotificationClass = (window as any).Notification;
+      if (!NotificationClass || typeof NotificationClass.requestPermission !== 'function') {
+        return false;
+      }
+      const permission = await NotificationClass.requestPermission();
       setState(prev => ({ ...prev, permission }));
       return permission === 'granted';
     } catch (error) {

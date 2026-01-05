@@ -163,16 +163,22 @@ export function checkRefillNotifications(): RefillReminder[] {
     });
 
     // Show push notification if available
-    if (typeof window !== 'undefined' && 'Notification' in window && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      const daysText = reminder.daysRemaining !== null
-        ? `хватит на ${reminder.daysRemaining} дн.`
-        : 'заканчивается';
+    try {
+      const NotificationClass = typeof window !== 'undefined' ? (window as any).Notification : null;
+      if (NotificationClass && NotificationClass.permission === 'granted') {
+        const daysText = reminder.daysRemaining !== null
+          ? `хватит на ${reminder.daysRemaining} дн.`
+          : 'заканчивается';
 
-      new Notification('💊 Пополните запас', {
-        body: `${reminder.medicationName} — ${daysText}`,
-        icon: '/capsula/icon-192.png',
-        tag: `refill-${reminder.medicationId}`,
-      });
+        new NotificationClass('💊 Пополните запас', {
+          body: `${reminder.medicationName} — ${daysText}`,
+          icon: '/capsula/icon-192.png',
+          tag: `refill-${reminder.medicationId}`,
+        });
+      }
+    } catch (error) {
+      // Notification API not available, silently fail
+      console.debug('Notification not available:', error);
     }
   }
 

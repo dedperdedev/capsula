@@ -4,6 +4,7 @@
 
 import type { Event, Schedule } from './storage';
 import { loadAppState, saveAppState, appendEvent } from './storage';
+import { getAnchorsForSchedule, getPlannedTimeFromAnchor } from '../lib/routineAnchors';
 
 export interface DoseInstance {
   id: string;
@@ -119,9 +120,24 @@ function getPlannedTimesForDate(schedule: Schedule, date: Date): Date[] {
   const times: Date[] = [];
   const dayOfWeek = date.getDay();
 
-  switch (schedule.scheme.type) {
+  // Check for routine anchors first
+  const anchors = getAnchorsForSchedule(schedule.id);
+  if (anchors.length > 0) {
+    // Use anchors instead of fixed times
+    for (const anchor of anchors) {
+      const plannedTime = getPlannedTimeFromAnchor(anchor, date);
+      if (plannedTime) {
+        times.push(plannedTime);
+      }
+    }
+    return times;
+  }
+
+  // Fall back to regular schedule scheme
+  const scheme = schedule.scheme;
+  switch (scheme.type) {
     case 'daily':
-      for (const timeStr of schedule.scheme.times) {
+      for (const timeStr of scheme.times) {
         const [hours, minutes] = timeStr.split(':').map(Number);
         const time = new Date(date);
         time.setHours(hours, minutes, 0, 0);
@@ -130,8 +146,8 @@ function getPlannedTimesForDate(schedule: Schedule, date: Date): Date[] {
       break;
 
     case 'weekly':
-      if (schedule.scheme.weekdays.includes(dayOfWeek)) {
-        for (const timeStr of schedule.scheme.times) {
+      if (scheme.weekdays.includes(dayOfWeek)) {
+        for (const timeStr of scheme.times) {
           const [hours, minutes] = timeStr.split(':').map(Number);
           const time = new Date(date);
           time.setHours(hours, minutes, 0, 0);
@@ -144,8 +160,8 @@ function getPlannedTimesForDate(schedule: Schedule, date: Date): Date[] {
       // Check if this date matches the interval
       const startDate = new Date(schedule.startDate);
       const daysDiff = Math.floor((date.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      if (daysDiff >= 0 && daysDiff % schedule.scheme.interval === 0) {
-        for (const timeStr of schedule.scheme.times) {
+      if (daysDiff >= 0 && daysDiff % scheme.interval === 0) {
+        for (const timeStr of scheme.times) {
           const [hours, minutes] = timeStr.split(':').map(Number);
           const time = new Date(date);
           time.setHours(hours, minutes, 0, 0);
@@ -157,8 +173,8 @@ function getPlannedTimesForDate(schedule: Schedule, date: Date): Date[] {
     case 'courseDays':
       const courseStart = new Date(schedule.startDate);
       const courseDays = Math.floor((date.getTime() - courseStart.getTime()) / (1000 * 60 * 60 * 24));
-      if (courseDays >= 0 && courseDays < schedule.scheme.days) {
-        for (const timeStr of schedule.scheme.times) {
+      if (courseDays >= 0 && courseDays < scheme.days) {
+        for (const timeStr of scheme.times) {
           const [hours, minutes] = timeStr.split(':').map(Number);
           const time = new Date(date);
           time.setHours(hours, minutes, 0, 0);
@@ -177,7 +193,7 @@ function getPlannedTimesForDate(schedule: Schedule, date: Date): Date[] {
       let current = new Date(start);
       while (current <= end) {
         times.push(new Date(current));
-        current = new Date(current.getTime() + schedule.scheme.interval * 60 * 60 * 1000);
+        current = new Date(current.getTime() + scheme.interval * 60 * 60 * 1000);
       }
       break;
   }

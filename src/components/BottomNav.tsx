@@ -1,10 +1,10 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Calendar, CalendarDays, BookOpen, Settings, Plus } from 'lucide-react';
+import { Calendar, BookOpen, BarChart3, Settings, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
 
 const tabs = [
   { path: '/today', icon: Calendar, label: 'Today' },
-  { path: '/schedule', icon: CalendarDays, label: 'Schedule' },
+  { path: '/insights', icon: BarChart3, label: 'Stats' },
   { path: '/library', icon: BookOpen, label: 'Library' },
   { path: '/settings', icon: Settings, label: 'Settings' },
 ];

@@ -5,7 +5,8 @@ import { Card } from '../components/shared/Card';
 import { useI18n } from '../hooks/useI18n';
 import { schedulesStore, itemsStore, doseLogsStore } from '../data/store';
 import { getTodayDoses } from '../data/todayDoses';
-import { Award, Flame, Star, Zap } from 'lucide-react';
+import { Award, Flame, Star, Zap, Clock, AlertTriangle, TrendingDown, Map } from 'lucide-react';
+import { getAdherenceBreakdown, getSkipReasonsBreakdown, getHeatmapData, getProblemTimes } from '../lib/analytics';
 
 export function InsightsPage() {
   const { t, locale } = useI18n();
@@ -367,6 +368,188 @@ export function InsightsPage() {
             </div>
           </Card>
         )}
+
+        {/* Adherence Breakdown */}
+        {(() => {
+          const breakdown = getAdherenceBreakdown(period === 'week' ? 7 : 30);
+          return (
+            <Card>
+              <div className="flex items-center gap-2 mb-4">
+                <Clock size={20} className="text-[var(--primary)]" />
+                <h3 className="text-lg font-bold text-[var(--text)]">
+                  {locale === 'ru' ? 'Детализация соблюдения' : 'Adherence Breakdown'}
+                </h3>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--muted)]">
+                    {locale === 'ru' ? 'Принято вовремя' : 'On-time rate'}
+                  </span>
+                  <span className="text-lg font-bold text-green-500">
+                    {breakdown.onTimeRate}%
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--muted)]">
+                    {locale === 'ru' ? 'Принято с опозданием' : 'Late rate'}
+                  </span>
+                  <span className="text-lg font-bold text-amber-500">
+                    {breakdown.lateRate}%
+                  </span>
+                </div>
+                <div className="pt-2 border-t border-[var(--stroke)]">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-medium text-[var(--text)]">
+                      {locale === 'ru' ? 'Общее соблюдение' : 'Overall adherence'}
+                    </span>
+                    <span className="text-xl font-bold text-[var(--primary)]">
+                      {breakdown.takenRate}%
+                    </span>
+                  </div>
+                  <div className="w-full h-3 bg-[var(--surface2)] rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-green-500 to-[var(--primary)] rounded-full transition-all"
+                      style={{ width: `${breakdown.takenRate}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </Card>
+          );
+        })()}
+
+        {/* Skip Reasons */}
+        {(() => {
+          const reasons = getSkipReasonsBreakdown(period === 'week' ? 7 : 30);
+          if (reasons.length === 0) return null;
+          
+          return (
+            <Card>
+              <div className="flex items-center gap-2 mb-4">
+                <AlertTriangle size={20} className="text-amber-500" />
+                <h3 className="text-lg font-bold text-[var(--text)]">
+                  {locale === 'ru' ? 'Причины пропусков' : 'Skip Reasons'}
+                </h3>
+              </div>
+              <div className="space-y-2">
+                {reasons.map((reason, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <span className="text-sm text-[var(--text)] capitalize">
+                      {reason.reason === 'forgot' ? (locale === 'ru' ? 'Забыл' : 'Forgot') :
+                       reason.reason === 'unavailable' ? (locale === 'ru' ? 'Нет в наличии' : 'Unavailable') :
+                       reason.reason === 'felt_bad' ? (locale === 'ru' ? 'Плохо себя чувствовал' : 'Felt bad') :
+                       reason.reason}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-2 bg-[var(--surface2)] rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-amber-500 rounded-full"
+                          style={{ width: `${reason.percentage}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-amber-500 w-12 text-right">
+                        {reason.percentage}%
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          );
+        })()}
+
+        {/* Problem Times */}
+        {(() => {
+          const problems = getProblemTimes(period === 'week' ? 7 : 30, locale);
+          if (problems.length === 0) return null;
+          
+          return (
+            <Card>
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingDown size={20} className="text-red-500" />
+                <h3 className="text-lg font-bold text-[var(--text)]">
+                  {locale === 'ru' ? 'Проблемное время' : 'Problem Times'}
+                </h3>
+              </div>
+              <div className="space-y-2">
+                {problems.map((problem, i) => (
+                  <div key={i} className="flex items-center justify-between p-2 bg-[var(--surface2)] rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium text-[var(--text)]">
+                        {problem.dayLabel} {problem.hourLabel}
+                      </p>
+                      <p className="text-xs text-[var(--muted2)]">
+                        {problem.missedCount} {locale === 'ru' ? 'пропущено' : 'missed'} + {problem.lateCount} {locale === 'ru' ? 'опозданий' : 'late'}
+                      </p>
+                    </div>
+                    <span className="text-sm font-bold text-red-500">
+                      {problem.totalIssues}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          );
+        })()}
+
+        {/* Heatmap */}
+        {(() => {
+          const heatmap = getHeatmapData(period === 'week' ? 7 : 30);
+          const dayLabels = locale === 'ru' ? ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+          
+          return (
+            <Card>
+              <div className="flex items-center gap-2 mb-4">
+                <Map size={20} className="text-[var(--primary)]" />
+                <h3 className="text-lg font-bold text-[var(--text)]">
+                  {locale === 'ru' ? 'Тепловая карта' : 'Heatmap'}
+                </h3>
+              </div>
+              <div className="overflow-x-auto">
+                <div className="inline-block min-w-full">
+                  <div className="grid grid-cols-8 gap-1 text-xs">
+                    <div></div>
+                    {dayLabels.map(day => (
+                      <div key={day} className="text-center text-[var(--muted2)] font-medium py-1">
+                        {day}
+                      </div>
+                    ))}
+                    {Array.from({ length: 24 }, (_, hour) => (
+                      <div key={hour} className="contents">
+                        <div className="text-right text-[var(--muted2)] pr-1 py-1 text-xs">
+                          {hour.toString().padStart(2, '0')}
+                        </div>
+                        {Array.from({ length: 7 }, (_, day) => {
+                          const cell = heatmap[day * 24 + hour];
+                          const intensity = cell.total > 0 ? (1 - cell.score) : 0;
+                          return (
+                            <div
+                              key={day}
+                              className={`w-4 h-4 rounded transition-colors ${
+                                intensity === 0 
+                                  ? 'bg-[var(--surface2)]' 
+                                  : intensity < 0.3 
+                                  ? 'bg-green-500/30' 
+                                  : intensity < 0.6 
+                                  ? 'bg-amber-500/50' 
+                                  : 'bg-red-500/70'
+                              }`}
+                              title={`${dayLabels[day]} ${hour}:00 - ${cell.total} doses, ${cell.missed} missed, ${cell.late} late`}
+                            />
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between mt-3 text-xs text-[var(--muted2)]">
+                <span>{locale === 'ru' ? 'Меньше проблем' : 'Fewer issues'}</span>
+                <span>{locale === 'ru' ? 'Больше проблем' : 'More issues'}</span>
+              </div>
+            </Card>
+          );
+        })()}
 
         {/* Legend */}
         <Card>

@@ -4,6 +4,10 @@ import { Card } from '../components/shared/Card';
 import { TodayProgressCard } from '../components/TodayProgressCard';
 import { TimeGroup } from '../components/TimeGroup';
 import { DoseDueModal } from '../components/DoseDueModal';
+import { NextDoseCard } from '../components/NextDoseCard';
+import { CareAlertBanner } from '../components/CareAlertBanner';
+import { RefillBanner } from '../components/RefillBanner';
+import { BatchMarkModal } from '../components/BatchMarkModal';
 import { getTodayDoses } from '../data/todayDoses';
 import { useI18n } from '../hooks/useI18n';
 import type { DoseInstance } from '../data/todayDoses';
@@ -14,6 +18,7 @@ export function TodayPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedDose, setSelectedDose] = useState<DoseInstance | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [batchMarkTime, setBatchMarkTime] = useState<string | null>(null);
 
   const refreshData = () => {
     try {
@@ -30,7 +35,17 @@ export function TodayPage() {
   useEffect(() => {
     refreshData();
     const interval = setInterval(refreshData, 60000);
-    return () => clearInterval(interval);
+    
+    // Listen for swipe action updates
+    const handleDoseUpdate = () => {
+      refreshData();
+    };
+    window.addEventListener('doseUpdated', handleDoseUpdate);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('doseUpdated', handleDoseUpdate);
+    };
   }, []);
 
   const groupedDoses = useMemo(() => {
@@ -93,7 +108,20 @@ export function TodayPage() {
 
   return (
     <div>
-      <div className="space-y-6">
+      <div className="space-y-4">
+        {/* Next Dose Card */}
+        <NextDoseCard 
+          onDoseClick={handleDoseClick}
+          onRefresh={refreshData}
+        />
+
+        {/* Care Alert Banner (Guardian Mode) */}
+        <CareAlertBanner />
+
+        {/* Refill Reminders */}
+        <RefillBanner />
+
+        {/* Progress Card */}
         <TodayProgressCard
           totalDoses={total}
           taken={stats.taken}
@@ -102,6 +130,7 @@ export function TodayPage() {
           remaining={stats.remaining}
         />
 
+        {/* Time Groups */}
         {sortedTimes.length > 0 ? (
           <div className="space-y-6">
             {sortedTimes.map((time) => (
@@ -111,6 +140,7 @@ export function TodayPage() {
                 doses={groupedDoses[time]}
                 onToggleDose={handleToggleDose}
                 onDoseClick={handleDoseClick}
+                onBatchMark={() => setBatchMarkTime(time)}
               />
             ))}
           </div>
@@ -133,6 +163,20 @@ export function TodayPage() {
         dose={selectedDose}
         onActionComplete={handleActionComplete}
       />
+
+      {/* Batch Mark Modal */}
+      {batchMarkTime && (
+        <BatchMarkModal
+          isOpen={!!batchMarkTime}
+          onClose={() => setBatchMarkTime(null)}
+          doses={groupedDoses[batchMarkTime] || []}
+          timeLabel={batchMarkTime}
+          onComplete={() => {
+            refreshData();
+            setBatchMarkTime(null);
+          }}
+        />
+      )}
     </div>
   );
 }

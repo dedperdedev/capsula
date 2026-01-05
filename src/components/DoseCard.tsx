@@ -3,11 +3,15 @@ import { Card } from './shared/Card';
 import { clsx } from 'clsx';
 import type { DoseInstance } from '../data/todayDoses';
 import { useI18n } from '../hooks/useI18n';
+import { useSwipe } from '../hooks/useSwipe';
+import { addMinutes } from 'date-fns';
+import { doseLogsStore } from '../data/store';
 
 interface DoseCardProps {
   dose: DoseInstance;
   onToggle: (dose: DoseInstance) => void;
   onClick?: (dose: DoseInstance) => void;
+  onSwipeAction?: (action: 'taken' | 'postpone' | 'skip') => void;
 }
 
 function getFormIcon(form: string) {
@@ -87,11 +91,73 @@ function getDaysLabel(locale: string, daysRemaining?: number, durationDaysTotal?
   return '';
 }
 
-export function DoseCard({ dose, onToggle, onClick }: DoseCardProps) {
+export function DoseCard({ dose, onToggle, onClick, onSwipeAction }: DoseCardProps) {
   const { locale } = useI18n();
   const Icon = getFormIcon(dose.form);
   const foodText = getFoodRelationText(dose.foodRelation, locale);
   const daysLabel = getDaysLabel(locale, dose.daysRemaining, dose.durationDaysTotal);
+
+  // Swipe handlers
+  const handleSwipeLeft = () => {
+    if (dose.isTaken || dose.isSkipped) return;
+    // Taken
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const [hours, minutes] = dose.originalTime.split(':').map(Number);
+    const scheduledFor = new Date(today);
+    scheduledFor.setHours(hours, minutes, 0, 0);
+    
+    doseLogsStore.create({
+      itemId: dose.itemId,
+      scheduledFor: scheduledFor.toISOString(),
+      action: 'taken',
+    });
+    onSwipeAction?.('taken');
+  };
+
+  const handleSwipeRight = () => {
+    if (dose.isTaken || dose.isSkipped) return;
+    // Postpone +30min default
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const [hours, minutes] = dose.originalTime.split(':').map(Number);
+    const scheduledFor = new Date(today);
+    scheduledFor.setHours(hours, minutes, 0, 0);
+    const snoozeUntil = addMinutes(scheduledFor, 30);
+    
+    doseLogsStore.create({
+      itemId: dose.itemId,
+      scheduledFor: scheduledFor.toISOString(),
+      action: 'snoozed',
+      snoozeUntil: snoozeUntil.toISOString(),
+    });
+    onSwipeAction?.('postpone');
+  };
+
+  const handleSwipeDown = () => {
+    if (dose.isTaken || dose.isSkipped) return;
+    // Skip
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const [hours, minutes] = dose.originalTime.split(':').map(Number);
+    const scheduledFor = new Date(today);
+    scheduledFor.setHours(hours, minutes, 0, 0);
+    
+    doseLogsStore.create({
+      itemId: dose.itemId,
+      scheduledFor: scheduledFor.toISOString(),
+      action: 'skipped',
+      reason: 'swipe_skip',
+    });
+    onSwipeAction?.('skip');
+  };
+
+  const { ref, transform, swipeDirection, isSwiping } = useSwipe({
+    onSwipeLeft: handleSwipeLeft,
+    onSwipeRight: handleSwipeRight,
+    onSwipeDown: handleSwipeDown,
+    enabled: !dose.isTaken && !dose.isSkipped,
+  });
 
   // Определяем статус и стили
   let statusIcon = null;
@@ -124,9 +190,25 @@ export function DoseCard({ dose, onToggle, onClick }: DoseCardProps) {
     }
   };
 
+  // Swipe visual feedback
+  const swipeBg = swipeDirection === 'left' ? 'bg-green-500/20' :
+                   swipeDirection === 'right' ? 'bg-blue-500/20' :
+                   swipeDirection === 'down' ? 'bg-red-500/20' : '';
+
   return (
-    <Card className="cursor-pointer" onClick={handleCardClick}>
-      <div className="flex items-start gap-3">
+    <div
+      ref={ref as any}
+      className={clsx(
+        "transition-transform",
+        isSwiping && swipeBg,
+        isSwiping && "shadow-lg"
+      )}
+      style={{
+        transform: isSwiping ? `translate(${transform.x}px, ${transform.y}px)` : undefined,
+      }}
+    >
+      <Card className="cursor-pointer" onClick={handleCardClick}>
+        <div className="flex items-start gap-3">
         <div className="w-11 h-11 rounded-[18px] border border-[var(--stroke)] bg-[var(--surface2)] flex items-center justify-center flex-shrink-0">
           <Icon size={20} className="text-[var(--muted)]" />
         </div>
@@ -179,6 +261,7 @@ export function DoseCard({ dose, onToggle, onClick }: DoseCardProps) {
           )}
         </div>
       </div>
-    </Card>
+      </Card>
+    </div>
   );
 }

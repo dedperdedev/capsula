@@ -382,3 +382,169 @@ export function getTodayDoses(date: Date = new Date()): DoseInstance[] {
   }
 }
 
+// ============ NEXT DOSE ============
+
+export interface NextDose {
+  dose: DoseInstance;
+  isOverdue: boolean;
+  minutesUntil: number; // negative if overdue
+}
+
+/**
+ * Get the next upcoming or overdue dose
+ */
+export function getNextDose(): NextDose | null {
+  const doses = getTodayDoses();
+  const now = new Date();
+  
+  // Filter to pending doses only
+  const pendingDoses = doses.filter(d => !d.isTaken && !d.isSkipped);
+  
+  if (pendingDoses.length === 0) return null;
+
+  // Sort by time
+  const sorted = pendingDoses.sort((a, b) => {
+    const [aH, aM] = a.time.split(':').map(Number);
+    const [bH, bM] = b.time.split(':').map(Number);
+    return (aH * 60 + aM) - (bH * 60 + bM);
+  });
+
+  // Find the first upcoming or most recent overdue
+  for (const dose of sorted) {
+    const [hours, minutes] = dose.time.split(':').map(Number);
+    const doseTime = new Date();
+    doseTime.setHours(hours, minutes, 0, 0);
+    
+    const minutesUntil = differenceInMinutes(doseTime, now);
+    const isOverdue = minutesUntil < -dose.graceWindowMinutes;
+
+    // Return first one (either upcoming or overdue)
+    return {
+      dose,
+      isOverdue,
+      minutesUntil,
+    };
+  }
+
+  return null;
+}
+
+// ============ BATCH MARK ============
+
+export interface BatchMarkResult {
+  success: boolean;
+  markedCount: number;
+  doseIds: string[];
+  undoData: Array<{ doseId: string; itemId: string; scheduledFor: string }>;
+}
+
+/**
+ * Mark multiple doses as taken at once
+ */
+export function batchMarkTaken(doseIds: string[]): BatchMarkResult {
+  const doses = getTodayDoses();
+  const undoData: BatchMarkResult['undoData'] = [];
+  let markedCount = 0;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  for (const doseId of doseIds) {
+    const dose = doses.find(d => d.id === doseId);
+    if (!dose || dose.isTaken || dose.isSkipped) continue;
+
+    const [hours, minutes] = dose.originalTime.split(':').map(Number);
+    const scheduledFor = new Date(today);
+    scheduledFor.setHours(hours, minutes, 0, 0);
+    const scheduledForISO = scheduledFor.toISOString();
+
+    doseLogsStore.create({
+      itemId: dose.itemId,
+      scheduledFor: scheduledForISO,
+      action: 'taken',
+    });
+
+    undoData.push({
+      doseId,
+      itemId: dose.itemId,
+      scheduledFor: scheduledForISO,
+    });
+    markedCount++;
+  }
+
+  return {
+    success: markedCount > 0,
+    markedCount,
+    doseIds,
+    undoData,
+  };
+}
+
+/**
+ * Mark multiple doses as skipped at once
+ */
+export function batchMarkSkipped(doseIds: string[], reason: string = 'batch_skipped'): BatchMarkResult {
+  const doses = getTodayDoses();
+  const undoData: BatchMarkResult['undoData'] = [];
+  let markedCount = 0;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  for (const doseId of doseIds) {
+    const dose = doses.find(d => d.id === doseId);
+    if (!dose || dose.isTaken || dose.isSkipped) continue;
+
+    const [hours, minutes] = dose.originalTime.split(':').map(Number);
+    const scheduledFor = new Date(today);
+    scheduledFor.setHours(hours, minutes, 0, 0);
+    const scheduledForISO = scheduledFor.toISOString();
+
+    doseLogsStore.create({
+      itemId: dose.itemId,
+      scheduledFor: scheduledForISO,
+      action: 'skipped',
+      reason,
+    });
+
+    undoData.push({
+      doseId,
+      itemId: dose.itemId,
+      scheduledFor: scheduledForISO,
+    });
+    markedCount++;
+  }
+
+  return {
+    success: markedCount > 0,
+    markedCount,
+    doseIds,
+    undoData,
+  };
+}
+
+/**
+ * Undo a batch mark operation
+ */
+export function undoBatchMark(undoData: BatchMarkResult['undoData']): boolean {
+  try {
+    const allLogs = doseLogsStore.getAll();
+    
+    for (const item of undoData) {
+      const log = allLogs.find(l => 
+        l.itemId === item.itemId && 
+        l.scheduledFor === item.scheduledFor &&
+        (l.action === 'taken' || l.action === 'skipped')
+      );
+      
+      if (log) {
+        doseLogsStore.delete(log.id);
+      }
+    }
+    
+    return true;
+  } catch {
+    return false;
+  }
+}
+

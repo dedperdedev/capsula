@@ -28,10 +28,22 @@ export function useNotifications() {
     const isSupported = 'Notification' in window && 'serviceWorker' in navigator;
     const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
                   (window.navigator as any).standalone === true;
-    const canSchedule = isSupported && 'showTrigger' in (Notification.prototype as any);
+    
+    let permission: NotificationPermission | 'unsupported' = 'unsupported';
+    let canSchedule = false;
+    
+    if (isSupported && typeof Notification !== 'undefined') {
+      try {
+        permission = Notification.permission;
+        canSchedule = 'showTrigger' in (Notification.prototype as any);
+      } catch (error) {
+        console.warn('Error accessing Notification API:', error);
+        permission = 'unsupported';
+      }
+    }
 
     setState({
-      permission: isSupported ? Notification.permission : 'unsupported',
+      permission,
       isSupported,
       isPWA,
       canSchedule,
@@ -42,7 +54,7 @@ export function useNotifications() {
    * Request notification permission
    */
   const requestPermission = useCallback(async (): Promise<boolean> => {
-    if (!state.isSupported) {
+    if (!state.isSupported || typeof Notification === 'undefined') {
       console.log('Notifications not supported');
       return false;
     }
@@ -224,7 +236,7 @@ export function isPWA(): boolean {
 export function getNotificationLimitations(): string[] {
   const limitations: string[] = [];
 
-  if (!('Notification' in window)) {
+  if (typeof window === 'undefined' || !('Notification' in window) || typeof Notification === 'undefined') {
     limitations.push('Уведомления не поддерживаются в этом браузере');
   }
 
@@ -236,7 +248,7 @@ export function getNotificationLimitations(): string[] {
     limitations.push('Для надежных уведомлений установите приложение на главный экран');
   }
 
-  if (!('showTrigger' in (Notification.prototype as any))) {
+  if (typeof Notification === 'undefined' || !('showTrigger' in (Notification.prototype as any))) {
     limitations.push('Запланированные уведомления не поддерживаются - уведомления работают только при открытом приложении');
   }
 

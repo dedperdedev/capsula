@@ -3,10 +3,10 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-interface ModalProps {
+export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
-  title: string;
+  title?: string;
   children: ReactNode;
   size?: 'sm' | 'md' | 'lg';
 }
@@ -51,19 +51,21 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
         className={`w-full ${sizeClasses[size]} bg-[var(--surface)] rounded-[18px] shadow-xl max-h-[90vh] overflow-y-auto`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-[var(--surface)] border-b border-[var(--stroke)] px-6 py-4 flex items-center justify-between rounded-t-[18px]">
-          <h2 id="modal-title" className="text-lg font-black text-[var(--text)]">
-            {title}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-[var(--surface2)] text-[var(--muted2)] hover:text-[var(--text)] transition-colors"
-            aria-label="Close"
-          >
-            <X size={20} />
-          </button>
-        </div>
-        <div className="p-6">{children}</div>
+        {title && (
+          <div className="sticky top-0 bg-[var(--surface)] border-b border-[var(--stroke)] px-6 py-4 flex items-center justify-between rounded-t-[18px]">
+            <h2 id="modal-title" className="text-lg font-black text-[var(--text)]">
+              {title}
+            </h2>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg hover:bg-[var(--surface2)] text-[var(--muted2)] hover:text-[var(--text)] transition-colors"
+              aria-label="Close"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        )}
+        {title ? <div className="p-6">{children}</div> : children}
       </div>
     </div>
   );

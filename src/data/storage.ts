@@ -3,7 +3,7 @@
  * This is the single source of truth for all app data
  */
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 export interface AppState {
   schemaVersion: number;
@@ -14,6 +14,16 @@ export interface AppState {
   inventory: InventoryItem[];
   events: Event[];
   settings: AppSettings;
+  // New in v3
+  guardianContacts: GuardianContact[];
+  symptomEntries: SymptomEntry[];
+  measurementEntries: MeasurementEntry[];
+  pinHash?: string; // PBKDF2 hash of PIN
+  pinSalt?: string; // Salt for PIN
+  // New in v4
+  shoppingList: ShoppingItem[];
+  routineAnchors: RoutineAnchor[];
+  sharePackages: SharePackage[];
 }
 
 export interface Profile {
@@ -21,8 +31,9 @@ export interface Profile {
   name: string;
   color?: string;
   createdAt: string;
-  isCaregiverModeEnabled?: boolean;
-  pinEnabled?: boolean;
+  // Guardian mode
+  guardianModeEnabled?: boolean;
+  guardianFollowUpWindow?: number; // minutes after grace window to consider "missed"
 }
 
 export interface Medication {
@@ -87,7 +98,17 @@ export type EventType =
   | 'PROFILE_CREATED'
   | 'PROFILE_UPDATED'
   | 'PROFILE_SWITCHED'
-  | 'DATA_IMPORTED';
+  | 'DATA_IMPORTED'
+  // New event types
+  | 'SYMPTOM_LOGGED'
+  | 'MEASUREMENT_LOGGED'
+  | 'GUARDIAN_ALERT_TRIGGERED'
+  | 'GUARDIAN_ALERT_ACKNOWLEDGED'
+  | 'REFILL_REMINDER_TRIGGERED'
+  | 'BATCH_DOSES_MARKED'
+  | 'PIN_ENABLED'
+  | 'PIN_DISABLED'
+  | 'EXPORT_CREATED';
 
 export interface Event {
   id: string;
@@ -108,6 +129,122 @@ export interface AppSettings {
   autoDecrementInventory: boolean;
   theme: 'light' | 'dark';
   locale: 'ru' | 'en';
+  // Caregiver settings
+  guardianFollowUpMinutes: number[]; // e.g. [10, 30, 60]
+  guardianMaxRepeats: number;
+  // Refill reminder settings
+  refillRemindersEnabled: boolean;
+  refillThresholdDays: number; // default 3
+  // App lock settings
+  appLockEnabled: boolean;
+  appLockTimeoutMinutes: number; // 0 = lock immediately on background
+  // Routine anchor settings (v4)
+  wakeTime?: string; // HH:mm
+  breakfastTime?: string; // HH:mm
+  lunchTime?: string; // HH:mm
+  dinnerTime?: string; // HH:mm
+  bedTime?: string; // HH:mm
+  // Travel/timezone settings (v4)
+  timezone?: string; // IANA timezone (e.g., "Europe/Moscow")
+  travelModeEnabled?: boolean;
+}
+
+// ============ GUARDIAN MODE ============
+
+export interface GuardianContact {
+  id: string;
+  profileId: string;
+  name: string;
+  relation?: string; // e.g. "Caregiver", "Family", "Doctor"
+  notifyMode: 'IN_APP' | 'PUSH';
+  enabled: boolean;
+  createdAt: string;
+}
+
+export interface MissedDoseAlert {
+  id: string;
+  profileId: string;
+  medicationId: string;
+  medicationName: string;
+  scheduledTime: string; // ISO
+  missedAt: string; // ISO when detected as missed
+  acknowledged: boolean;
+}
+
+// ============ SYMPTOM DIARY ============
+
+export type SymptomType = 
+  | 'headache' | 'nausea' | 'dizziness' | 'fatigue' | 'insomnia'
+  | 'stomach_pain' | 'rash' | 'anxiety' | 'other';
+
+export interface SymptomEntry {
+  id: string;
+  profileId: string;
+  ts: string; // ISO timestamp
+  symptomType: SymptomType;
+  severity: number; // 1-10
+  note?: string;
+  relatedMedicationId?: string;
+  relatedDoseId?: string;
+  createdAt: string;
+}
+
+// ============ MEASUREMENTS ============
+
+export type MeasurementType = 
+  | 'BP' | 'GLUCOSE' | 'WEIGHT' | 'TEMP' | 'HR' | 'SPO2' | 'CUSTOM';
+
+export interface MeasurementEntry {
+  id: string;
+  profileId: string;
+  ts: string; // ISO timestamp
+  type: MeasurementType;
+  value: string; // Can be "120/80" for BP or single number
+  unit: string; // "mmHg", "mg/dL", "kg", "°C", "bpm", "%"
+  note?: string;
+  createdAt: string;
+}
+
+// ============ SHOPPING LIST (v4) ============
+
+export interface ShoppingItem {
+  id: string;
+  profileId: string;
+  medicationId: string;
+  medicationName: string;
+  quantity?: number;
+  note?: string;
+  status: 'pending' | 'purchased' | 'cancelled';
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============ ROUTINE ANCHORS (v4) ============
+
+export type AnchorType = 'after_wake' | 'after_breakfast' | 'after_lunch' | 'after_dinner' | 'before_sleep';
+
+export interface RoutineAnchor {
+  id: string;
+  profileId: string;
+  scheduleId: string;
+  anchorType: AnchorType;
+  offsetMinutes: number; // Offset from anchor time (e.g., +30 min after breakfast)
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============ SHARE PACKAGES (v4) ============
+
+export interface SharePackage {
+  id: string;
+  profileId: string;
+  code: string; // 6-digit code or UUID
+  encryptedData?: string; // Encrypted JSON payload
+  expiresAt?: string; // ISO timestamp
+  viewOnly: boolean;
+  createdAt: string;
+  accessedAt?: string;
+  accessCount: number;
 }
 
 const STORAGE_KEY = 'capsula_app_state';
@@ -317,6 +454,52 @@ function createDefaultState(): AppState {
       autoDecrementInventory: true,
       theme: 'light',
       locale: 'ru',
+      // New v3 settings
+      guardianFollowUpMinutes: [10, 30, 60],
+      guardianMaxRepeats: 3,
+      refillRemindersEnabled: true,
+      refillThresholdDays: 3,
+      appLockEnabled: false,
+      appLockTimeoutMinutes: 0,
+    },
+    // New v3 fields
+    guardianContacts: [],
+    symptomEntries: [],
+    measurementEntries: [],
+    // New v4 fields
+    shoppingList: [],
+    routineAnchors: [],
+    sharePackages: [],
+  };
+}
+
+function migrateFromV3(state: AppState): AppState {
+  // Add new v4 fields
+  return {
+    ...state,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    shoppingList: state.shoppingList || [],
+    routineAnchors: state.routineAnchors || [],
+    sharePackages: state.sharePackages || [],
+  };
+}
+
+function migrateFromV2(state: AppState): AppState {
+  // Add new v3 fields
+  return {
+    ...state,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    guardianContacts: state.guardianContacts || [],
+    symptomEntries: state.symptomEntries || [],
+    measurementEntries: state.measurementEntries || [],
+    settings: {
+      ...state.settings,
+      guardianFollowUpMinutes: state.settings.guardianFollowUpMinutes || [10, 30, 60],
+      guardianMaxRepeats: state.settings.guardianMaxRepeats || 3,
+      refillRemindersEnabled: state.settings.refillRemindersEnabled ?? true,
+      refillThresholdDays: state.settings.refillThresholdDays || 3,
+      appLockEnabled: state.settings.appLockEnabled || false,
+      appLockTimeoutMinutes: state.settings.appLockTimeoutMinutes || 0,
     },
   };
 }
@@ -393,7 +576,7 @@ function migrateFromV1(_state: any): AppState {
   }));
 
   return {
-    schemaVersion: CURRENT_SCHEMA_VERSION,
+    schemaVersion: 2, // Return as v2, then migrateFromV2 will upgrade to v3, then v3->v4
     profiles: [defaultProfile],
     activeProfileId: defaultProfile.id,
     medications,
@@ -406,7 +589,21 @@ function migrateFromV1(_state: any): AppState {
       autoDecrementInventory: true,
       theme: 'light',
       locale: 'ru',
+      // Will be added by v2->v3 migration
+      guardianFollowUpMinutes: [10, 30, 60],
+      guardianMaxRepeats: 3,
+      refillRemindersEnabled: true,
+      refillThresholdDays: 3,
+      appLockEnabled: false,
+      appLockTimeoutMinutes: 0,
     },
+    guardianContacts: [],
+    symptomEntries: [],
+    measurementEntries: [],
+    // Will be added by v3->v4 migration
+    shoppingList: [],
+    routineAnchors: [],
+    sharePackages: [],
   };
 }
 
@@ -443,11 +640,20 @@ export function loadAppState(): AppState {
   // Migrate if needed
   if (state.schemaVersion < CURRENT_SCHEMA_VERSION) {
     console.log(`Migrating from v${state.schemaVersion} to v${CURRENT_SCHEMA_VERSION}...`);
-    if (state.schemaVersion === 1) {
-      const migrated = migrateFromV1(state);
-      saveState(migrated);
-      return migrated;
+    let migrated = state;
+    
+    if (migrated.schemaVersion === 1) {
+      migrated = migrateFromV1(migrated);
     }
+    if (migrated.schemaVersion === 2) {
+      migrated = migrateFromV2(migrated);
+    }
+    if (migrated.schemaVersion === 3) {
+      migrated = migrateFromV3(migrated);
+    }
+    
+    saveState(migrated);
+    return migrated;
   }
 
   return state;

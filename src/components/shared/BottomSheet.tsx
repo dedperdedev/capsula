@@ -32,7 +32,7 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/40 z-[100] animate-in fade-in"
+        className="fixed inset-0 bg-black/20 dark:bg-black/50 z-[100] animate-in fade-in"
         onClick={onClose}
       />
       

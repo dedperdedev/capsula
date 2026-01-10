@@ -106,7 +106,7 @@ export function DoseActionSheet({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/40 z-[150] animate-in fade-in"
+        className="fixed inset-0 bg-black/20 dark:bg-black/50 z-[150] animate-in fade-in"
         onClick={onClose}
       />
 

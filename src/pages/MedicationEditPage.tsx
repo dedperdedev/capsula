@@ -8,6 +8,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { ChipGroup } from '../components/shared/ChipGroup';
 import { FormCard } from '../components/shared/FormCard';
+import { BlueHeroHeader } from '../components/shared/BlueHeroHeader';
 import { itemsStore, schedulesStore } from '../data/store';
 import { toast } from '../components/shared/Toast';
 import { useI18n } from '../hooks/useI18n';
@@ -228,23 +229,23 @@ export function MedicationEditPage() {
   const timeOptions = TIME_PRESETS.map(time => ({ id: time, label: time }));
   const selectedTimeIds = selectedTimes;
 
+  const leftAction = (
+    <button
+      onClick={() => navigate(-1)}
+      className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
+      aria-label={locale === 'ru' ? 'Назад' : 'Back'}
+    >
+      <ArrowLeft size={20} />
+    </button>
+  );
+
   return (
     <div className="min-h-screen bg-[var(--bg)] pb-24">
-      {/* Blue Gradient Header */}
-      <div className="relative bg-gradient-to-br from-blue-500 to-blue-600 text-white pt-12 pb-6 px-5">
-        <div className="flex items-center gap-3 mb-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
-            aria-label={locale === 'ru' ? 'Назад' : 'Back'}
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <h1 className="text-lg font-semibold text-white flex-1 text-center pr-10">
-            {locale === 'ru' ? 'Изменить лекарство' : 'Edit medication'}
-          </h1>
-        </div>
-      </div>
+      <BlueHeroHeader
+        variant="compact"
+        title={locale === 'ru' ? 'Изменить лекарство' : 'Edit medication'}
+        leftAction={leftAction}
+      />
 
       {/* White content sheet with rounded top corners */}
       <div className="bg-[var(--surface)] rounded-t-[24px] -mt-4 relative z-10 px-5 py-6 space-y-6">

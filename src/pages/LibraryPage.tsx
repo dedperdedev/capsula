@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Edit, Trash2, Package, AlertTriangle } from 'lucide-react';
-import { TopBar } from '../components/shared/TopBar';
+import { BlueHeroHeader } from '../components/shared/BlueHeroHeader';
 import { Card } from '../components/shared/Card';
 import { Button } from '../components/shared/Button';
 import { Modal } from '../components/shared/Modal';
@@ -151,8 +151,9 @@ export function LibraryPage() {
       });
 
   return (
-    <div>
-      <TopBar
+    <div className="min-h-full">
+      <BlueHeroHeader
+        variant="compact"
         title={t('library.title')}
         subtitle={t('library.manage')}
       />

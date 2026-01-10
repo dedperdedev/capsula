@@ -9,6 +9,7 @@ import { DrugSearch } from '../components/DrugSearch';
 import { Card } from '../components/shared/Card';
 import { Button } from '../components/shared/Button';
 import { QuickAddWizard } from '../components/QuickAddWizard';
+import { BlueHeroHeader } from '../components/shared/BlueHeroHeader';
 import { FilePlus } from 'lucide-react';
 import { useI18n } from '../hooks/useI18n';
 
@@ -28,34 +29,28 @@ export function SearchPage() {
   }, []);
 
   return (
-    <div>
-      {/* Search bar is now in Shell header, only visible on this route */}
-      {/* Additional search input below for better UX */}
-      <div className="px-4 pt-4 pb-2">
-        <div className="mb-4">
-          <h1 className="text-2xl font-bold text-[var(--text)] mb-2">
-            {locale === 'ru' ? 'Поиск препаратов' : 'Search Drugs'}
-          </h1>
-          <p className="text-sm text-[var(--muted2)]">
-            {locale === 'ru' 
-              ? 'Ищите по названию препарата, производителю или активному веществу'
-              : 'Search by drug name, manufacturer, or active ingredient'}
-          </p>
-        </div>
-        <div>
-          <DrugSearch 
-            showScanButton={true}
-            onScan={() => {
-              // Placeholder for barcode scanning
-              if (locale === 'ru') {
-                alert('Функция сканирования будет реализована в ближайшее время');
-              } else {
-                alert('Barcode scanning will be implemented soon');
-              }
-            }}
-            autoFocus={true}
-          />
-        </div>
+    <div className="min-h-full">
+      <BlueHeroHeader
+        variant="compact"
+        title={locale === 'ru' ? 'Поиск препаратов' : 'Search Drugs'}
+        subtitle={locale === 'ru' 
+          ? 'Ищите по названию препарата, производителю или активному веществу'
+          : 'Search by drug name, manufacturer, or active ingredient'}
+      />
+      
+      <div className="px-4 pt-6 pb-2">
+        <DrugSearch 
+          showScanButton={true}
+          onScan={() => {
+            // Placeholder for barcode scanning
+            if (locale === 'ru') {
+              alert('Функция сканирования будет реализована в ближайшее время');
+            } else {
+              alert('Barcode scanning will be implemented soon');
+            }
+          }}
+          autoFocus={true}
+        />
       </div>
       
       <div className="px-4 py-4 space-y-4">

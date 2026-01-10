@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Moon, Sun, AlertTriangle, Languages, Database, Upload, Trash2, Printer, Bell, Shield, Lock, Package, FileText, Calendar, FileJson, Users, ShoppingCart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { TopBar } from '../components/shared/TopBar';
+import { BlueHeroHeader } from '../components/shared/BlueHeroHeader';
 import { Card } from '../components/shared/Card';
 import { Button } from '../components/shared/Button';
 import { Modal } from '../components/shared/Modal';
@@ -194,8 +194,12 @@ export function SettingsPage() {
   };
 
   return (
-    <div>
-      <TopBar title={t('settings.title')} subtitle={t('settings.managePreferences')} />
+    <div className="min-h-full">
+      <BlueHeroHeader
+        variant="compact"
+        title={t('settings.title')}
+        subtitle={t('settings.managePreferences')}
+      />
 
       <div className="space-y-4">
         <Card>

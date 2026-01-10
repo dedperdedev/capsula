@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { format, startOfDay, subDays, eachDayOfInterval, isToday } from 'date-fns';
-import { TopBar } from '../components/shared/TopBar';
+import { BlueHeroHeader } from '../components/shared/BlueHeroHeader';
 import { Card } from '../components/shared/Card';
 import { useI18n } from '../hooks/useI18n';
 import { schedulesStore, itemsStore, doseLogsStore } from '../data/store';
@@ -128,8 +128,11 @@ export function InsightsPage() {
   }, [period, locale]);
 
   return (
-    <div>
-      <TopBar title={t('common.insights')} />
+    <div className="min-h-full">
+      <BlueHeroHeader
+        variant="compact"
+        title={t('common.insights')}
+      />
 
       <div className="space-y-6">
         {/* Period Toggle */}

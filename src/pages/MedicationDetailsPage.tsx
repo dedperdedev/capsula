@@ -12,6 +12,7 @@ import { useI18n } from '../hooks/useI18n';
 import type { Item, Schedule } from '../data/types';
 import { format, parse, differenceInDays, startOfDay } from 'date-fns';
 import { Modal } from '../components/shared/Modal';
+import { BlueHeroHeader } from '../components/shared/BlueHeroHeader';
 
 export function MedicationDetailsPage() {
   const { itemId } = useParams<{ itemId: string }>();
@@ -150,53 +151,62 @@ export function MedicationDetailsPage() {
     ? 'Описание отсутствует' 
     : 'No description available');
 
+  const leftAction = (
+    <button
+      onClick={() => navigate(-1)}
+      className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
+      aria-label={locale === 'ru' ? 'Назад' : 'Back'}
+    >
+      <ArrowLeft size={20} />
+    </button>
+  );
+
+  const rightActions = (
+    <>
+      <button
+        onClick={() => navigate(`/medications/${item.id}${schedule ? `/${schedule.id}` : ''}/edit`)}
+        className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
+        aria-label={locale === 'ru' ? 'Редактировать' : 'Edit'}
+      >
+        <Edit size={18} />
+      </button>
+      <button
+        onClick={() => setShowDeleteConfirm(true)}
+        className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
+        aria-label={locale === 'ru' ? 'Удалить' : 'Delete'}
+      >
+        <Trash2 size={18} />
+      </button>
+    </>
+  );
+
+  const heroContent = (
+    <div className="flex items-start gap-4">
+      <div className="w-16 h-16 rounded-[20px] bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
+        <Pill size={28} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <h1 className="text-2xl font-bold mb-2 leading-tight">
+          {displayName}
+        </h1>
+        <p className="text-sm text-white/90 leading-relaxed">
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-[var(--bg)] pb-24">
-      {/* Hero Header */}
-      <div className="relative bg-gradient-to-br from-blue-500 to-blue-600 text-white pt-12 pb-8 px-5">
-        {/* Top buttons */}
-        <div className="flex items-center justify-between mb-6">
-          <button
-            onClick={() => navigate(-1)}
-            className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
-            aria-label={locale === 'ru' ? 'Назад' : 'Back'}
-          >
-            <ArrowLeft size={20} />
-          </button>
-          
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate(`/medications/${item.id}${schedule ? `/${schedule.id}` : ''}/edit`)}
-              className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
-              aria-label={locale === 'ru' ? 'Редактировать' : 'Edit'}
-            >
-              <Edit size={18} />
-            </button>
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
-              aria-label={locale === 'ru' ? 'Удалить' : 'Delete'}
-            >
-              <Trash2 size={18} />
-            </button>
-          </div>
-        </div>
-
-        {/* Drug icon + title */}
-        <div className="flex items-start gap-4 mb-4">
-          <div className="w-16 h-16 rounded-[20px] bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
-            <Pill size={28} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold mb-2 leading-tight">
-              {displayName}
-            </h1>
-            <p className="text-sm text-white/90 leading-relaxed">
-              {description}
-            </p>
-          </div>
-        </div>
-      </div>
+      <BlueHeroHeader
+        variant="large"
+        title={displayName}
+        subtitle={description}
+        leftAction={leftAction}
+        rightActions={rightActions}
+      >
+        {heroContent}
+      </BlueHeroHeader>
 
       {/* White content area */}
       <div className="px-5 -mt-6 relative z-10 space-y-4">

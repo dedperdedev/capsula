@@ -25,6 +25,9 @@
   --muted2: #9ca3af;
   --stroke: #e5e7eb;
   --stroke2: #d1d5db;
+  /* Hero colors */
+  --hero-blue-start: #5C8FF0;
+  --hero-blue-end: #4E7FE6;
 }
 
 [data-theme="dark"] {

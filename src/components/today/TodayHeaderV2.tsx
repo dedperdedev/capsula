@@ -11,6 +11,7 @@ import { loadAppState } from '../../data/storage';
 import { useI18n } from '../../hooks/useI18n';
 import { formatHeroDateLabel } from '../../utils/date';
 import { ProfileSwitcher } from '../ProfileSwitcher';
+import { BlueHeroHeader } from '../shared/BlueHeroHeader';
 
 /**
  * Ring Progress Component
@@ -153,109 +154,107 @@ export function TodayHeaderV2({
     onDateChange?.(newDate);
   };
 
-  return (
-    <>
-      {/* Hero Header - Full width blue gradient background */}
-      <div 
-        className="relative w-full bg-gradient-to-b from-[#5C8FF0] to-[#4E7FE6] text-white"
-        style={{ 
-          height: 'min(300px, 35vh)',
-          minHeight: '240px',
-          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)',
-        }}
+  const leftAction = (
+    <button
+      onClick={() => setIsProfileSwitcherOpen(true)}
+      className="flex items-center gap-3 active:opacity-80 transition-opacity"
+      aria-label="Switch profile"
+    >
+      <div
+        className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-base border-2 border-white/30 shadow-md"
+        style={{ backgroundColor: activeProfile?.color || '#3b82f6' }}
       >
-        <div className="h-full flex flex-col px-5 pb-6">
-          {/* Top row: Profile + Search + Stats */}
-          <div className="flex items-center justify-between mb-6">
-            {/* Profile Avatar + Name */}
-            <button
-              onClick={() => setIsProfileSwitcherOpen(true)}
-              className="flex items-center gap-3 active:opacity-80 transition-opacity"
-              aria-label="Switch profile"
-            >
-              <div
-                className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-base border-2 border-white/30 shadow-md"
-                style={{ backgroundColor: activeProfile?.color || '#3b82f6' }}
-              >
-                {activeProfile?.name.charAt(0).toUpperCase() || '?'}
-              </div>
-              <div className="text-left">
-                <p className="text-base font-medium text-white leading-tight">
-                  {activeProfile?.name || (locale === 'ru' ? 'Профиль' : 'Profile')}
-                </p>
-              </div>
-            </button>
+        {activeProfile?.name.charAt(0).toUpperCase() || '?'}
+      </div>
+      <div className="text-left">
+        <p className="text-base font-medium text-white leading-tight">
+          {activeProfile?.name || (locale === 'ru' ? 'Профиль' : 'Profile')}
+        </p>
+      </div>
+    </button>
+  );
 
-            {/* Right side: Search + Stats buttons */}
-            <div className="flex items-center gap-2">
-              {/* Search icon button */}
-              <button
-                onClick={() => navigate('/search')}
-                className="w-11 h-11 rounded-full bg-white shadow-md flex items-center justify-center active:opacity-80 transition-opacity"
-                aria-label={locale === 'ru' ? 'Поиск' : 'Search'}
-              >
-                <Search size={20} className="text-gray-700" />
-              </button>
+  const rightActions = (
+    <>
+      <button
+        onClick={() => navigate('/search')}
+        className="w-11 h-11 rounded-full bg-white shadow-md flex items-center justify-center active:opacity-80 transition-opacity"
+        aria-label={locale === 'ru' ? 'Поиск' : 'Search'}
+      >
+        <Search size={20} className="text-gray-700" />
+      </button>
+      <button
+        onClick={() => navigate('/insights')}
+        className="w-11 h-11 rounded-full bg-white shadow-md flex items-center justify-center active:opacity-80 transition-opacity"
+        aria-label={locale === 'ru' ? 'Статистика' : 'Statistics'}
+      >
+        <BarChart3 size={20} className="text-gray-700" />
+      </button>
+    </>
+  );
 
-              {/* Stats icon button */}
-              <button
-                onClick={() => navigate('/insights')}
-                className="w-11 h-11 rounded-full bg-white shadow-md flex items-center justify-center active:opacity-80 transition-opacity"
-                aria-label={locale === 'ru' ? 'Статистика' : 'Statistics'}
-              >
-                <BarChart3 size={20} className="text-gray-700" />
-              </button>
-            </div>
-          </div>
+  const customContent = (
+    <>
+      {/* Main message + Ring Progress */}
+      <div className="flex items-center gap-4 mb-4">
+        {/* Text Content */}
+        <div className="flex-1">
+          <p className="text-[28px] font-medium text-white mb-2 leading-tight">
+            {primaryMessage}
+          </p>
+          {totalDoses > taken && (
+            <p className="text-sm text-white/80 leading-tight">
+              {subtext}
+            </p>
+          )}
+        </div>
 
-          {/* Main message + Ring Progress */}
-          <div className="flex items-center gap-4 mb-auto">
-            {/* Text Content */}
-            <div className="flex-1">
-              <p className="text-[28px] font-medium text-white mb-2 leading-tight">
-                {primaryMessage}
-              </p>
-              {totalDoses > taken && (
-                <p className="text-sm text-white/80 leading-tight">
-                  {subtext}
-                </p>
-              )}
-            </div>
-
-            {/* Ring Progress - Large (92-110px) */}
-            <div className="flex-shrink-0">
-              <RingProgress 
-                value={adherence} 
-                size={110}
-                strokeWidth={6}
-                trackColor="rgba(255, 255, 255, 0.3)"
-                progressColor="rgba(255, 255, 255, 0.9)"
-              />
-            </div>
-          </div>
-
-          {/* Date Navigation - Near bottom */}
-          <div className="flex items-center justify-center gap-6 mt-6">
-            <button
-              onClick={handleDatePrev}
-              className="w-11 h-11 rounded-full flex items-center justify-center text-white/80 active:scale-[0.98] transition-all hover:text-white"
-              aria-label={locale === 'ru' ? 'Предыдущий день' : 'Previous day'}
-            >
-              <ChevronLeft size={20} />
-            </button>
-            <span className="text-base font-medium text-white min-w-[160px] text-center">
-              {formatHeroDateLabel(selectedDate, locale)}
-            </span>
-            <button
-              onClick={handleDateNext}
-              className="w-11 h-11 rounded-full flex items-center justify-center text-white/80 active:scale-[0.98] transition-all hover:text-white"
-              aria-label={locale === 'ru' ? 'Следующий день' : 'Next day'}
-            >
-              <ChevronRight size={20} />
-            </button>
-          </div>
+        {/* Ring Progress - Large (92-110px) */}
+        <div className="flex-shrink-0">
+          <RingProgress 
+            value={adherence} 
+            size={110}
+            strokeWidth={6}
+            trackColor="rgba(255, 255, 255, 0.3)"
+            progressColor="rgba(255, 255, 255, 0.9)"
+          />
         </div>
       </div>
+
+      {/* Date Navigation */}
+      <div className="flex items-center justify-center gap-6">
+        <button
+          onClick={handleDatePrev}
+          className="w-11 h-11 rounded-full flex items-center justify-center text-white/80 active:scale-[0.98] transition-all hover:text-white"
+          aria-label={locale === 'ru' ? 'Предыдущий день' : 'Previous day'}
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <span className="text-base font-medium text-white min-w-[160px] text-center">
+          {formatHeroDateLabel(selectedDate, locale)}
+        </span>
+        <button
+          onClick={handleDateNext}
+          className="w-11 h-11 rounded-full flex items-center justify-center text-white/80 active:scale-[0.98] transition-all hover:text-white"
+          aria-label={locale === 'ru' ? 'Следующий день' : 'Next day'}
+        >
+          <ChevronRight size={20} />
+        </button>
+      </div>
+    </>
+  );
+
+  return (
+    <>
+      <BlueHeroHeader
+        variant="large"
+        title={primaryMessage}
+        subtitle={totalDoses > taken ? subtext : undefined}
+        leftAction={leftAction}
+        rightActions={rightActions}
+      >
+        {customContent}
+      </BlueHeroHeader>
 
       {/* Profile Switcher Modal */}
       <ProfileSwitcher

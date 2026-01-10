@@ -4,7 +4,7 @@ import { CheckCircle2, XCircle, Clock } from 'lucide-react';
 import { Modal } from './shared/Modal';
 import { Button } from './shared/Button';
 import { useI18n } from '../hooks/useI18n';
-import { doseLogsStore, inventoryStore, schedulesStore } from '../data/store';
+import { doseLogsStore, inventoryStore } from '../data/store';
 import { toast } from './shared/Toast';
 import type { DoseInstance } from '../data/todayDoses';
 

@@ -1,15 +1,20 @@
 import { type ReactNode, useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { BottomNav } from './BottomNav';
-import { ScanLine, User, Plus } from 'lucide-react';
+import { ScanLine, User } from 'lucide-react';
 import { DrugSearch } from './DrugSearch';
 import { ProfileSwitcher } from './ProfileSwitcher';
 import { QuickAddWizard } from './QuickAddWizard';
 import { loadAppState } from '../data/storage';
 
 export function Shell({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [isProfileSwitcherOpen, setIsProfileSwitcherOpen] = useState(false);
-  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [activeProfile, setActiveProfile] = useState<{ name: string; color: string } | null>(null);
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const isTodayPage = location.pathname === '/today';
+  const isMedicationPage = location.pathname.startsWith('/medications/');
 
   const loadProfile = () => {
     const state = loadAppState();
@@ -23,42 +28,60 @@ export function Shell({ children }: { children: ReactNode }) {
     loadProfile();
   }, []);
 
+  // Listen for QuickAddWizard event globally
+  useEffect(() => {
+    const handleOpenQuickAdd = () => {
+      setIsQuickAddOpen(true);
+    };
+    window.addEventListener('openQuickAddWizard', handleOpenQuickAdd);
+    return () => {
+      window.removeEventListener('openQuickAddWizard', handleOpenQuickAdd);
+    };
+  }, []);
+
   return (
     <div className="relative overflow-hidden min-h-dvh bg-[var(--bg)]">
       {/* Background gradient layer - behind everything */}
       <div className="fixed inset-0 pointer-events-none -z-10 bg-gradient-radial" />
       
-      {/* App frame container */}
-      <div className="relative z-10 mx-auto max-w-[430px] min-h-dvh flex flex-col">
-        {/* Header - sticky, above content */}
-        <header className="sticky top-0 z-30 bg-[var(--surface)]/80 backdrop-blur-lg border-b border-[var(--stroke)] overflow-visible">
-          <div className="px-[18px] py-3">
-            <div className="flex items-center gap-3">
-              {/* Profile Button */}
-              <button
-                onClick={() => setIsProfileSwitcherOpen(true)}
-                className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm transition-transform active:scale-95"
-                style={{ backgroundColor: activeProfile?.color || '#3b82f6' }}
-                aria-label="Switch profile"
-              >
-                {activeProfile?.name.charAt(0).toUpperCase() || <User size={16} />}
-              </button>
+      {/* App frame container - blue top for Today page to avoid white strip above hero */}
+      <div 
+        className="relative z-10 mx-auto max-w-[430px] min-h-dvh flex flex-col"
+        style={isTodayPage ? {
+          background: 'linear-gradient(to bottom, #5C8FF0 0%, #5C8FF0 300px, var(--bg) 300px)'
+        } : undefined}
+      >
+        {/* Header - sticky, above content (hidden on Today page and Medication pages with custom headers) */}
+        {!isTodayPage && !isMedicationPage && (
+          <header className="sticky top-0 z-30 bg-[var(--surface)]/80 backdrop-blur-lg border-b border-[var(--stroke)] overflow-visible">
+            <div className="px-[18px] py-3">
+              <div className="flex items-center gap-3">
+                {/* Profile Button */}
+                <button
+                  onClick={() => setIsProfileSwitcherOpen(true)}
+                  className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm transition-transform active:scale-95"
+                  style={{ backgroundColor: activeProfile?.color || '#3b82f6' }}
+                  aria-label="Switch profile"
+                >
+                  {activeProfile?.name.charAt(0).toUpperCase() || <User size={16} />}
+                </button>
 
-              {/* Search */}
-              <div className="flex-1 relative">
-                <DrugSearch />
+                {/* Search */}
+                <div className="flex-1 relative">
+                  <DrugSearch />
+                </div>
+
+                {/* Scan Button */}
+                <button
+                  className="flex-shrink-0 w-9 h-9 rounded-full bg-[var(--surface2)] flex items-center justify-center text-[var(--muted2)] hover:text-[var(--text)] transition-colors"
+                  aria-label="Scan barcode"
+                >
+                  <ScanLine size={18} />
+                </button>
               </div>
-
-              {/* Scan Button */}
-              <button
-                className="flex-shrink-0 w-9 h-9 rounded-full bg-[var(--surface2)] flex items-center justify-center text-[var(--muted2)] hover:text-[var(--text)] transition-colors"
-                aria-label="Scan barcode"
-              >
-                <ScanLine size={18} />
-              </button>
             </div>
-          </div>
-        </header>
+          </header>
+        )}
 
         <ProfileSwitcher
           isOpen={isProfileSwitcherOpen}
@@ -70,31 +93,37 @@ export function Shell({ children }: { children: ReactNode }) {
         />
         
         {/* Main content - scrollable, above background */}
-        <main className="relative z-10 flex-1 px-[18px] py-4 pb-24 overflow-y-auto min-h-0">
+        {/* Bottom padding: pill height (56px) + safe area + spacing (24px) = 80px base + safe-area (except medication pages) */}
+        <main 
+          className="relative z-10 flex-1 overflow-y-auto min-h-0"
+          style={{ 
+            paddingBottom: isMedicationPage ? '0px' : 'calc(80px + env(safe-area-inset-bottom, 0px))',
+            paddingLeft: isMedicationPage ? '0px' : '18px',
+            paddingRight: isMedicationPage ? '0px' : '18px',
+            paddingTop: (isMedicationPage || isTodayPage) ? '0px' : '16px',
+          }}
+        >
           <div className="relative z-10">
             {children}
           </div>
         </main>
-
-        {/* FAB - Quick Add Button */}
-        <button
-          onClick={() => setIsQuickAddOpen(true)}
-          className="fixed bottom-24 right-4 w-14 h-14 rounded-full bg-[var(--acc)] text-white shadow-lg flex items-center justify-center transition-transform active:scale-95 hover:bg-[var(--acc2)] z-40"
-          style={{ maxWidth: '430px', right: 'calc(50% - 215px + 16px)' }}
-          aria-label="Quick add medication"
-        >
-          <Plus size={28} strokeWidth={2.5} />
-        </button>
-
-        <QuickAddWizard
-          isOpen={isQuickAddOpen}
-          onClose={() => setIsQuickAddOpen(false)}
-          onComplete={() => window.location.reload()}
-        />
         
-        {/* Bottom navigation - fixed, above everything */}
-        <BottomNav />
+        {/* Bottom navigation - fixed, above everything (hidden on medication drill-in pages) */}
+        {!isMedicationPage && <BottomNav />}
       </div>
+
+      {/* Global QuickAddWizard - available on all pages */}
+      <QuickAddWizard
+        isOpen={isQuickAddOpen}
+        onClose={() => setIsQuickAddOpen(false)}
+        onComplete={() => {
+          setIsQuickAddOpen(false);
+          // Navigate to today page after adding
+          if (location.pathname !== '/today') {
+            navigate('/today');
+          }
+        }}
+      />
     </div>
   );
 }

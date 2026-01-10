@@ -128,6 +128,16 @@
 
 ---
 
+## UI/UX Improvements
+
+### UI Refresh V1 (Calm Medical Design)
+- **Calm Today Header**: Profile avatar, progress ring, date navigation
+- **Softer Dose Cards**: Larger icons, better spacing, tinted status colors
+- **Better Hierarchy**: Clear primary actions, reduced visual noise
+- **Feature Flag**: Can be disabled for rollback if needed
+
+See [UI_REFRESH_V1.md](./UI_REFRESH_V1.md) for details.
+
 ## Planned Features
 
 - [ ] Performance indexing for large event logs

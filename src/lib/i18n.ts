@@ -98,6 +98,14 @@ const translations: Record<string, { ru: string; en: string }> = {
   'library.unit': { ru: 'Единица измерения', en: 'Unit' },
   'library.lowThresholdLabel': { ru: 'Порог низкого запаса', en: 'Low stock threshold' },
   'library.thresholdHint': { ru: 'Предупреждение появится, когда останется меньше этого количества', en: 'Alert will appear when remaining is below this amount' },
+  
+  // Navigation / Actions
+  'action.addFromCatalog': { ru: 'Добавить из каталога', en: 'Add from catalog' },
+  'action.addManually': { ru: 'Добавить вручную', en: 'Add manually' },
+  'action.cantFindIt': { ru: 'Не нашли препарат?', en: "Can't find it?" },
+  'action.addManuallyHint': { ru: 'Добавьте препарат вручную без поиска в каталоге', en: 'Add medication manually without catalog search' },
+  'stats.extended': { ru: 'Расширенная статистика', en: 'Expanded Statistics' },
+  'stats.extendedHint': { ru: 'Здесь будет расширенная статистика и аналитика. Пока отображается базовая статистика.', en: 'Extended statistics and analytics will appear here. Basic statistics are shown for now.' },
   'library.inStock': { ru: 'Количество в наличии', en: 'Stock' },
   'library.quantityCannotBeNegative': { ru: 'Количество не может быть отрицательным', en: 'Quantity cannot be negative' },
   'library.unitLabelRequired': { ru: 'Укажите единицу измерения', en: 'Unit label is required' },

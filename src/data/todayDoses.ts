@@ -547,4 +547,3 @@ export function undoBatchMark(undoData: BatchMarkResult['undoData']): boolean {
     return false;
   }
 }
-

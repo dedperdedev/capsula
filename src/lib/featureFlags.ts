@@ -28,6 +28,9 @@ export interface FeatureFlags {
   // Experimental
   advancedAnalytics: boolean;
   aiInsights: boolean;
+  
+  // UI Refresh
+  uiRefreshV1: boolean;
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
@@ -44,6 +47,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   notificationDiagnostics: false,
   advancedAnalytics: false,
   aiInsights: false,
+  uiRefreshV1: true, // Enable by default, can be disabled for rollback
 };
 
 const STORAGE_KEY = 'capsula_feature_flags';
@@ -166,6 +170,12 @@ export function getFeatureFlagsForSettings(): Array<{ key: keyof FeatureFlags; l
       label: { ru: 'Диагностика уведомлений', en: 'Notification Diagnostics' },
       description: { ru: 'Панель тестирования уведомлений', en: 'Panel to test notifications' },
       category: 'Platform',
+    },
+    {
+      key: 'uiRefreshV1',
+      label: { ru: 'Обновление интерфейса V1', en: 'UI Refresh V1' },
+      description: { ru: 'Новый спокойный дизайн для экрана Today', en: 'New calm design for Today screen' },
+      category: 'UI',
     },
   ];
 }

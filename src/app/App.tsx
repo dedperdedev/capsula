@@ -14,6 +14,10 @@ import { ShoppingListPage } from '../pages/ShoppingListPage';
 import { FamilyOverviewPage } from '../pages/FamilyOverviewPage';
 import { SharePage } from '../pages/SharePage';
 import { TestPage } from '../pages/TestPage';
+import { SearchPage } from '../pages/SearchPage';
+import { StatsExtendedPage } from '../pages/StatsExtendedPage';
+import { MedicationEditPage } from '../pages/MedicationEditPage';
+import { MedicationDetailsPage } from '../pages/MedicationDetailsPage';
 import { isPinEnabled, shouldLock, recordUnlock, handleVisibilityChange } from '../lib/appLock';
 
 function App() {
@@ -66,6 +70,11 @@ function App() {
           <Route path="/shopping" element={<ShoppingListPage />} />
           <Route path="/family" element={<FamilyOverviewPage />} />
           <Route path="/share/:code" element={<SharePage />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/stats-extended" element={<StatsExtendedPage />} />
+          <Route path="/medications/:itemId" element={<MedicationDetailsPage />} />
+          <Route path="/medications/:itemId/edit" element={<MedicationEditPage />} />
+          <Route path="/medications/:itemId/:scheduleId/edit" element={<MedicationEditPage />} />
           <Route path="/test" element={<TestPage />} />
         </Routes>
         <ToastContainer />

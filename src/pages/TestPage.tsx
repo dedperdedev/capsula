@@ -16,6 +16,7 @@ import {
   getTodayDoses,
   getNextDose,
 } from '../data/eventLog';
+import { isFeatureEnabled } from '../lib/featureFlags';
 
 export function TestPage() {
   const [state, setState] = useState<AppState | null>(null);
@@ -287,6 +288,38 @@ export function TestPage() {
           {state.events.length === 0 && (
             <p className="text-sm text-[var(--muted2)]">No events yet</p>
           )}
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <h2 className="text-lg font-semibold text-[var(--text)] mb-2">UI Refresh V1</h2>
+        <div className="space-y-2 text-sm">
+          <div>
+            <span className="text-[var(--muted2)]">UI Refresh Enabled:</span>{' '}
+            <span className={`font-semibold ${isFeatureEnabled('uiRefreshV1') ? 'text-green-600' : 'text-[var(--muted2)]'}`}>
+              {isFeatureEnabled('uiRefreshV1') ? '✅ Yes' : '❌ No'}
+            </span>
+          </div>
+          <div className="pt-2 border-t border-[var(--stroke)]">
+            <p className="text-xs text-[var(--muted2)] mb-2">
+              UI Refresh V1 adds a calm header and softer dose cards. Check Today page to verify:
+            </p>
+            <ul className="text-xs text-[var(--muted2)] space-y-1 list-disc list-inside">
+              <li>Profile avatar + name in header</li>
+              <li>Progress ring showing adherence %</li>
+              <li>Date navigation with chevrons</li>
+              <li>Larger, softer dose cards</li>
+              <li>Better spacing and hierarchy</li>
+            </ul>
+          </div>
+          <div className="pt-2">
+            <a 
+              href="/capsula/today" 
+              className="text-xs text-[var(--acc)] underline"
+            >
+              → Go to Today page to test
+            </a>
+          </div>
         </div>
       </Card>
     </div>

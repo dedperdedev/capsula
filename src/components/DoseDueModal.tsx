@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { startOfDay, parse } from 'date-fns';
 import { CheckCircle2, XCircle, Clock } from 'lucide-react';
 import { Modal } from './shared/Modal';
 import { Button } from './shared/Button';
@@ -11,7 +12,35 @@ interface DoseDueModalProps {
   isOpen: boolean;
   onClose: () => void;
   dose: DoseInstance | null;
+  selectedDate?: Date; // Date for which the dose is being displayed
   onActionComplete: () => void;
+}
+
+/**
+ * Extract date from dose ID (format: scheduleId-YYYY-MM-DD-time)
+ */
+function getDateFromDoseId(doseId: string): Date {
+  const parts = doseId.split('-');
+  if (parts.length >= 4) {
+    // Format: scheduleId-YYYY-MM-DD-HH:mm
+    const year = parseInt(parts[parts.length - 3], 10);
+    const month = parseInt(parts[parts.length - 2], 10) - 1; // month is 0-indexed
+    const day = parseInt(parts[parts.length - 1].split('-')[0] || parts[parts.length - 1], 10);
+    if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+      return startOfDay(new Date(year, month, day));
+    }
+  }
+  // Fallback: try parsing as date string from last part
+  const dateStr = parts.slice(-3).join('-');
+  try {
+    const parsed = parse(dateStr, 'yyyy-MM-dd', new Date());
+    if (!isNaN(parsed.getTime())) {
+      return startOfDay(parsed);
+    }
+  } catch {
+    // Fallback to today
+  }
+  return startOfDay(new Date());
 }
 
 const SKIP_REASONS = [
@@ -28,7 +57,7 @@ const SNOOZE_PRESETS = [
   { minutes: 120, label: { ru: '+2 часа', en: '+2 hours' } },
 ];
 
-export function DoseDueModal({ isOpen, onClose, dose, onActionComplete }: DoseDueModalProps) {
+export function DoseDueModal({ isOpen, onClose, dose, selectedDate, onActionComplete }: DoseDueModalProps) {
   const { t, locale } = useI18n();
   const [skipReason, setSkipReason] = useState<string>('');
   const [snoozeMinutes, setSnoozeMinutes] = useState<number>(15);
@@ -38,13 +67,16 @@ export function DoseDueModal({ isOpen, onClose, dose, onActionComplete }: DoseDu
 
   if (!dose) return null;
 
+  // Determine the date for this dose: use selectedDate prop, or extract from dose ID, or default to today
+  const doseDate = selectedDate 
+    ? startOfDay(selectedDate) 
+    : getDateFromDoseId(dose.id);
+
   const handleTaken = () => {
     if (!dose) return;
     
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const [hours, minutes] = dose.time.split(':').map(Number);
-    const scheduledFor = new Date(today);
+    const [hours, minutes] = dose.originalTime.split(':').map(Number);
+    const scheduledFor = new Date(doseDate);
     scheduledFor.setHours(hours, minutes, 0, 0);
     const scheduledForISO = scheduledFor.toISOString();
 
@@ -73,10 +105,8 @@ export function DoseDueModal({ isOpen, onClose, dose, onActionComplete }: DoseDu
       return;
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const [hours, minutes] = dose.time.split(':').map(Number);
-    const scheduledFor = new Date(today);
+    const [hours, minutes] = dose.originalTime.split(':').map(Number);
+    const scheduledFor = new Date(doseDate);
     scheduledFor.setHours(hours, minutes, 0, 0);
     const scheduledForISO = scheduledFor.toISOString();
 
@@ -102,17 +132,15 @@ export function DoseDueModal({ isOpen, onClose, dose, onActionComplete }: DoseDu
       return;
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // Get original scheduled time - check if there's an existing snooze log
+    // Get original scheduled time - check if there's an existing snooze log for this date
     const allLogs = doseLogsStore.getAll();
-    const existingSnoozeLog = allLogs.find(log => 
-      log.itemId === dose.itemId &&
-      log.action === 'snoozed' &&
-      log.snoozeUntil &&
-      new Date(log.snoozeUntil) > new Date()
-    );
+    const doseDateStr = doseDate.toISOString().split('T')[0];
+    const existingSnoozeLog = allLogs.find(log => {
+      if (log.itemId !== dose.itemId || log.action !== 'snoozed' || !log.snoozeUntil) return false;
+      // Check if log is for the same date
+      const logDate = log.scheduledFor ? new Date(log.scheduledFor).toISOString().split('T')[0] : null;
+      return logDate === doseDateStr && new Date(log.snoozeUntil) > new Date();
+    });
     
     let originalScheduledFor: Date;
     
@@ -120,25 +148,10 @@ export function DoseDueModal({ isOpen, onClose, dose, onActionComplete }: DoseDu
       // Use the original scheduled time from existing log
       originalScheduledFor = new Date(existingSnoozeLog.scheduledFor);
     } else {
-      // First time snoozing - find original time from schedule
-      const schedule = schedulesStore.get(dose.scheduleId);
-      if (schedule && schedule.times.length > 0) {
-        // Find the original time that matches or is closest to current dose time
-        const [doseH, doseM] = dose.time.split(':').map(Number);
-        const originalTime = schedule.times.find(t => {
-          const [h, m] = t.split(':').map(Number);
-          return h === doseH && m === doseM;
-        }) || schedule.times[0];
-        
-        const [hours, minutesTime] = originalTime.split(':').map(Number);
-        originalScheduledFor = new Date(today);
-        originalScheduledFor.setHours(hours, minutesTime, 0, 0);
-      } else {
-        // Fallback to current dose time
-        const [hours, minutesTime] = dose.time.split(':').map(Number);
-        originalScheduledFor = new Date(today);
-        originalScheduledFor.setHours(hours, minutesTime, 0, 0);
-      }
+      // First time snoozing - use originalTime with doseDate
+      const [hours, minutesTime] = dose.originalTime.split(':').map(Number);
+      originalScheduledFor = new Date(doseDate);
+      originalScheduledFor.setHours(hours, minutesTime, 0, 0);
     }
     
     const originalScheduledForISO = originalScheduledFor.toISOString();

@@ -199,7 +199,7 @@ export function TodayHeaderV2({
 
               {/* Stats icon button */}
               <button
-                onClick={() => navigate('/stats-extended')}
+                onClick={() => navigate('/insights')}
                 className="w-11 h-11 rounded-full bg-white shadow-md flex items-center justify-center active:opacity-80 transition-opacity"
                 aria-label={locale === 'ru' ? 'Статистика' : 'Statistics'}
               >

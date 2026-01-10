@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { BottomNav } from './BottomNav';
 import { ProfileSwitcher } from './ProfileSwitcher';
 import { QuickAddWizard } from './QuickAddWizard';
-import { loadAppState } from '../data/storage';
 
 export function Shell({ children }: { children: ReactNode }) {
   const location = useLocation();

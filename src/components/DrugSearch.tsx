@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Pill, X } from 'lucide-react';
+import { Search, Pill, X, ScanLine } from 'lucide-react';
 import { searchDrugs, getDrugById } from '../mocks/drugs';
 import type { Drug } from '../data/drugTypes';
 import { useI18n } from '../hooks/useI18n';
@@ -34,9 +34,19 @@ interface DrugSearchProps {
   onSelect?: (drug: Drug) => void;
   placeholder?: string;
   className?: string;
+  showScanButton?: boolean;
+  onScan?: () => void;
+  autoFocus?: boolean;
 }
 
-export function DrugSearch({ onSelect, placeholder, className }: DrugSearchProps) {
+export function DrugSearch({ 
+  onSelect, 
+  placeholder, 
+  className,
+  showScanButton = false,
+  onScan,
+  autoFocus = false
+}: DrugSearchProps) {
   const navigate = useNavigate();
   const { locale } = useI18n();
   const [query, setQuery] = useState('');
@@ -46,6 +56,12 @@ export function DrugSearch({ onSelect, placeholder, className }: DrugSearchProps
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const blurTimeoutRef = useRef<number>();
+
+  useEffect(() => {
+    if (autoFocus) {
+      inputRef.current?.focus();
+    }
+  }, [autoFocus]);
 
   useEffect(() => {
     if (query.trim()) {
@@ -122,12 +138,31 @@ export function DrugSearch({ onSelect, placeholder, className }: DrugSearchProps
     inputRef.current?.focus();
   };
 
+  const handleScan = () => {
+    if (onScan) {
+      onScan();
+    } else {
+      // Default scan behavior - could open a barcode scanner
+      // For now, just show a placeholder
+      if (locale === 'ru') {
+        alert('Функция сканирования будет реализована в ближайшее время');
+      } else {
+        alert('Barcode scanning will be implemented soon');
+      }
+    }
+  };
+
+  // Calculate padding-right based on visible buttons
+  const rightPadding = showScanButton 
+    ? (query ? 'pr-20' : 'pr-11')  // Space for both scan and clear buttons, or just scan
+    : (query ? 'pr-8' : 'pr-3');   // Space for clear button, or minimal
+
   return (
     <div ref={containerRef} className={`relative ${className || ''}`}>
       <div className="relative">
         <Search 
           size={16} 
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted2)] pointer-events-none"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted2)] pointer-events-none z-10"
         />
         <input
           ref={inputRef}
@@ -138,16 +173,30 @@ export function DrugSearch({ onSelect, placeholder, className }: DrugSearchProps
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           placeholder={placeholder || (locale === 'ru' ? 'Поиск препаратов...' : 'Search drugs...')}
-          className="w-full h-[42px] pl-10 pr-8 rounded-[18px] border border-[var(--stroke)] bg-[var(--surface)] text-[var(--text)] font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-[var(--acc2)] focus:border-transparent placeholder:text-[var(--muted2)]"
+          className={`w-full h-[42px] pl-10 ${rightPadding} rounded-[18px] border border-[var(--stroke)] bg-[var(--surface)] text-[var(--text)] font-semibold text-sm focus:outline-none focus:ring-2 focus:ring-[var(--acc2)] focus:border-transparent placeholder:text-[var(--muted2)]`}
         />
-        {query && (
-          <button
-            onClick={handleClear}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-[var(--stroke)] rounded-full transition-colors"
-          >
-            <X size={14} className="text-[var(--muted2)]" />
-          </button>
-        )}
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {showScanButton && (
+            <button
+              onClick={handleScan}
+              className="p-1.5 hover:bg-[var(--stroke)] rounded-full transition-colors flex-shrink-0"
+              aria-label={locale === 'ru' ? 'Сканировать штрихкод' : 'Scan barcode'}
+              type="button"
+            >
+              <ScanLine size={16} className="text-[var(--muted2)] hover:text-[var(--text)]" />
+            </button>
+          )}
+          {query && (
+            <button
+              onClick={handleClear}
+              className="p-1 hover:bg-[var(--stroke)] rounded-full transition-colors flex-shrink-0"
+              aria-label={locale === 'ru' ? 'Очистить' : 'Clear'}
+              type="button"
+            >
+              <X size={14} className="text-[var(--muted2)]" />
+            </button>
+          )}
+        </div>
       </div>
 
       {isOpen && results.length > 0 && (

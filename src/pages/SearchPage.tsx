@@ -43,7 +43,18 @@ export function SearchPage() {
           </p>
         </div>
         <div>
-          <DrugSearch />
+          <DrugSearch 
+            showScanButton={true}
+            onScan={() => {
+              // Placeholder for barcode scanning
+              if (locale === 'ru') {
+                alert('Функция сканирования будет реализована в ближайшее время');
+              } else {
+                alert('Barcode scanning will be implemented soon');
+              }
+            }}
+            autoFocus={true}
+          />
         </div>
       </div>
       

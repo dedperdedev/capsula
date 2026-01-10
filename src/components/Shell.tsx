@@ -1,8 +1,6 @@
 import { type ReactNode, useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BottomNav } from './BottomNav';
-import { ScanLine, User } from 'lucide-react';
-import { DrugSearch } from './DrugSearch';
 import { ProfileSwitcher } from './ProfileSwitcher';
 import { QuickAddWizard } from './QuickAddWizard';
 import { loadAppState } from '../data/storage';
@@ -11,23 +9,14 @@ export function Shell({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [isProfileSwitcherOpen, setIsProfileSwitcherOpen] = useState(false);
-  const [activeProfile, setActiveProfile] = useState<{ name: string; color: string } | null>(null);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const isTodayPage = location.pathname === '/today';
   const isMedicationPage = location.pathname.startsWith('/medications/');
   const isSearchPage = location.pathname === '/search';
 
   const loadProfile = () => {
-    const state = loadAppState();
-    const profile = state.profiles.find(p => p.id === state.activeProfileId);
-    if (profile) {
-      setActiveProfile({ name: profile.name, color: profile.color || '#3b82f6' });
-    }
+    // Function exists for ProfileSwitcher callback, but not needed for Search page header
   };
-
-  useEffect(() => {
-    loadProfile();
-  }, []);
 
   // Listen for QuickAddWizard event globally
   useEffect(() => {
@@ -54,37 +43,7 @@ export function Shell({ children }: { children: ReactNode }) {
           background: 'var(--bg)'
         }}
       >
-        {/* Header - only shown on Search page with search bar, removed from all other pages */}
-        {isSearchPage && (
-          <header className="sticky top-0 z-30 bg-[var(--surface)]/80 backdrop-blur-lg border-b border-[var(--stroke)] overflow-visible">
-            <div className="px-[18px] py-3">
-              <div className="flex items-center gap-3">
-                {/* Profile Button */}
-                <button
-                  onClick={() => setIsProfileSwitcherOpen(true)}
-                  className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm transition-transform active:scale-95"
-                  style={{ backgroundColor: activeProfile?.color || '#3b82f6' }}
-                  aria-label="Switch profile"
-                >
-                  {activeProfile?.name.charAt(0).toUpperCase() || <User size={16} />}
-                </button>
-
-                {/* Search */}
-                <div className="flex-1 relative">
-                  <DrugSearch />
-                </div>
-
-                {/* Scan Button */}
-                <button
-                  className="flex-shrink-0 w-9 h-9 rounded-full bg-[var(--surface2)] flex items-center justify-center text-[var(--muted2)] hover:text-[var(--text)] transition-colors"
-                  aria-label="Scan barcode"
-                >
-                  <ScanLine size={18} />
-                </button>
-              </div>
-            </div>
-          </header>
-        )}
+        {/* Header removed from Search page - search is now only in content */}
 
         <ProfileSwitcher
           isOpen={isProfileSwitcherOpen}

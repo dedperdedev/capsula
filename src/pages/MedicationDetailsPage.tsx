@@ -58,31 +58,43 @@ export function MedicationDetailsPage() {
       ? parse(schedule.endDate, 'yyyy-MM-dd', new Date())
       : null;
     
-    if (!end) return null;
-    
     const today = startOfDay(new Date());
-    const total = differenceInDays(end, start) + 1;
-    const elapsed = Math.max(0, differenceInDays(today, start) + 1);
     
-    // Try to calculate adherence-based progress
+    // Try to calculate adherence-based progress (works even without endDate)
     if (item) {
-      const logs = doseLogsStore.getAll().filter(log => 
-        log.itemId === item.id && 
-        new Date(log.scheduledFor) >= start &&
-        (!end || new Date(log.scheduledFor) <= end)
-      );
+      const logs = doseLogsStore.getAll().filter(log => {
+        const logDate = startOfDay(new Date(log.scheduledFor));
+        return log.itemId === item.id && 
+               logDate >= start &&
+               (!end || logDate <= end);
+      });
       const taken = logs.filter(log => log.action === 'taken').length;
       const totalScheduled = logs.length;
       
       if (totalScheduled > 0) {
         const adherenceProgress = Math.round((taken / totalScheduled) * 100);
+        const elapsed = end 
+          ? Math.max(0, differenceInDays(today, start) + 1)
+          : Math.max(0, differenceInDays(today, start) + 1);
+        const total = end ? differenceInDays(end, start) + 1 : undefined;
         return { progress: adherenceProgress, total, elapsed, isAdherence: true };
       }
     }
     
-    // Fallback to time-based progress
-    const timeProgress = Math.min(100, Math.round((elapsed / total) * 100));
-    return { progress: timeProgress, total, elapsed, isAdherence: false };
+    // Fallback to time-based progress (only if endDate exists)
+    if (end) {
+      const total = differenceInDays(end, start) + 1;
+      const elapsed = Math.max(0, differenceInDays(today, start) + 1);
+      const timeProgress = Math.min(100, Math.round((elapsed / total) * 100));
+      return { progress: timeProgress, total, elapsed, isAdherence: false };
+    }
+    
+    // If no endDate and no logs, calculate days since start (for ongoing courses)
+    const elapsed = Math.max(0, differenceInDays(today, start) + 1);
+    // Show progress based on days elapsed (cap at reasonable max, e.g., 30 days = 100%)
+    const daysSinceStart = elapsed;
+    const progress = Math.min(100, Math.round((daysSinceStart / 30) * 100)); // 30 days = 100%
+    return { progress, total: undefined, elapsed, isAdherence: false };
   };
 
   const courseProgress = getCourseProgress();
@@ -246,10 +258,10 @@ export function MedicationDetailsPage() {
                 </div>
                 
                 <div className="space-y-2">
-                  {schedule.endDate && (
+                  {courseProgress?.total && (
                     <div className="flex items-center gap-2 text-sm text-[var(--muted2)]">
                       <Calendar size={16} />
-                      <span>{locale === 'ru' ? 'Продолж.' : 'Duration'}. {courseProgress?.total || 0} {locale === 'ru' ? 'дн.' : 'days'}</span>
+                      <span>{locale === 'ru' ? 'Продолж.' : 'Duration'}. {courseProgress.total} {locale === 'ru' ? 'дн.' : 'days'}</span>
                     </div>
                   )}
                   <div className="flex items-center gap-2 text-sm text-[var(--muted2)]">

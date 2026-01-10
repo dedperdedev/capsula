@@ -41,16 +41,18 @@ export function Shell({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <div className="relative overflow-hidden min-h-dvh bg-[var(--bg)]">
+    <div className="relative h-full min-h-dvh flex flex-col bg-[var(--bg)]">
       {/* Background gradient layer - behind everything */}
       <div className="fixed inset-0 pointer-events-none -z-10 bg-gradient-radial" />
       
       {/* App frame container - blue top for Today page to avoid white strip above hero */}
       <div 
-        className="relative z-10 mx-auto max-w-[430px] min-h-dvh flex flex-col"
+        className="relative z-10 mx-auto w-full max-w-[430px] h-full min-h-dvh flex flex-col"
         style={isTodayPage ? {
           background: 'linear-gradient(to bottom, #5C8FF0 0%, #5C8FF0 300px, var(--bg) 300px)'
-        } : undefined}
+        } : {
+          background: 'var(--bg)'
+        }}
       >
         {/* Header - only shown on Search page with search bar, removed from all other pages */}
         {isSearchPage && (
@@ -96,7 +98,7 @@ export function Shell({ children }: { children: ReactNode }) {
         {/* Main content - scrollable, above background */}
         {/* Bottom padding: pill height (56px) + safe area + spacing (24px) = 80px base + safe-area (except medication pages) */}
         <main 
-          className="relative z-10 flex-1 overflow-y-auto min-h-0"
+          className="relative z-10 flex-1 overflow-y-auto min-h-0 bg-[var(--bg)]"
           style={{ 
             paddingBottom: isMedicationPage ? '0px' : 'calc(80px + env(safe-area-inset-bottom, 0px))',
             paddingLeft: isMedicationPage ? '0px' : '18px',
@@ -104,7 +106,7 @@ export function Shell({ children }: { children: ReactNode }) {
             paddingTop: (isMedicationPage || isTodayPage || isSearchPage) ? '0px' : '16px',
           }}
         >
-          <div className="relative z-10">
+          <div className="relative z-10 min-h-full">
             {children}
           </div>
         </main>

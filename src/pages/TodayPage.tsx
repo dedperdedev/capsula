@@ -278,7 +278,7 @@ export function TodayPage() {
   const useNewHeader = isFeatureEnabled('uiRefreshV1');
 
   return (
-    <div className={useNewHeader ? '-mx-[18px] relative' : 'min-h-screen'}>
+    <div className={useNewHeader ? '-mx-[18px] relative min-h-full' : 'min-h-screen'}>
       {/* Calm Header V2 (if enabled) */}
       {useNewHeader && (
         <TodayHeaderV2
@@ -297,6 +297,9 @@ export function TodayPage() {
             ? 'bg-white rounded-t-[28px] -mt-8 pt-6 px-5 pb-8 shadow-lg relative z-10' 
             : 'space-y-4'
         }`}
+        style={useNewHeader ? {
+          minHeight: 'calc(100vh - 240px + 32px)',
+        } : undefined}
       >
         {/* Next Dose Card */}
         {!useNewHeader && (

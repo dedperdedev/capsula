@@ -15,6 +15,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const isTodayPage = location.pathname === '/today';
   const isMedicationPage = location.pathname.startsWith('/medications/');
+  const isSearchPage = location.pathname === '/search';
 
   const loadProfile = () => {
     const state = loadAppState();
@@ -51,8 +52,8 @@ export function Shell({ children }: { children: ReactNode }) {
           background: 'linear-gradient(to bottom, #5C8FF0 0%, #5C8FF0 300px, var(--bg) 300px)'
         } : undefined}
       >
-        {/* Header - sticky, above content (hidden on Today page and Medication pages with custom headers) */}
-        {!isTodayPage && !isMedicationPage && (
+        {/* Header - only shown on Search page with search bar, removed from all other pages */}
+        {isSearchPage && (
           <header className="sticky top-0 z-30 bg-[var(--surface)]/80 backdrop-blur-lg border-b border-[var(--stroke)] overflow-visible">
             <div className="px-[18px] py-3">
               <div className="flex items-center gap-3">
@@ -100,7 +101,7 @@ export function Shell({ children }: { children: ReactNode }) {
             paddingBottom: isMedicationPage ? '0px' : 'calc(80px + env(safe-area-inset-bottom, 0px))',
             paddingLeft: isMedicationPage ? '0px' : '18px',
             paddingRight: isMedicationPage ? '0px' : '18px',
-            paddingTop: (isMedicationPage || isTodayPage) ? '0px' : '16px',
+            paddingTop: (isMedicationPage || isTodayPage || isSearchPage) ? '0px' : '16px',
           }}
         >
           <div className="relative z-10">

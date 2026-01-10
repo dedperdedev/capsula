@@ -5,12 +5,11 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TopBar } from '../components/shared/TopBar';
 import { DrugSearch } from '../components/DrugSearch';
 import { Card } from '../components/shared/Card';
 import { Button } from '../components/shared/Button';
 import { QuickAddWizard } from '../components/QuickAddWizard';
-import { FilePlus, Search as SearchIcon } from 'lucide-react';
+import { FilePlus } from 'lucide-react';
 import { useI18n } from '../hooks/useI18n';
 
 export function SearchPage() {
@@ -30,13 +29,25 @@ export function SearchPage() {
 
   return (
     <div>
-      <TopBar title={locale === 'ru' ? 'Поиск препаратов' : 'Search Drugs'} />
-      
-      <div className="px-4 py-4 space-y-4">
-        {/* Search Input */}
+      {/* Search bar is now in Shell header, only visible on this route */}
+      {/* Additional search input below for better UX */}
+      <div className="px-4 pt-4 pb-2">
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold text-[var(--text)] mb-2">
+            {locale === 'ru' ? 'Поиск препаратов' : 'Search Drugs'}
+          </h1>
+          <p className="text-sm text-[var(--muted2)]">
+            {locale === 'ru' 
+              ? 'Ищите по названию препарата, производителю или активному веществу'
+              : 'Search by drug name, manufacturer, or active ingredient'}
+          </p>
+        </div>
         <div>
           <DrugSearch />
         </div>
+      </div>
+      
+      <div className="px-4 py-4 space-y-4">
 
         {/* Manual Add Fallback */}
         <Card className="p-4">
@@ -66,19 +77,6 @@ export function SearchPage() {
           </div>
         </Card>
 
-        {/* Info Card */}
-        <Card className="p-4">
-          <div className="flex items-start gap-3">
-            <SearchIcon size={20} className="text-[var(--muted2)] flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm text-[var(--muted2)]">
-                {locale === 'ru' 
-                  ? 'Ищите по названию препарата, производителю или активному веществу. Нажмите на результат, чтобы просмотреть детали и добавить в аптечку.'
-                  : 'Search by drug name, manufacturer, or active ingredient. Tap a result to view details and add to your cabinet.'}
-              </p>
-            </div>
-          </div>
-        </Card>
       </div>
 
       {/* Quick Add Wizard */}
